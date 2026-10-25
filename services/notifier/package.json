@@ -1,0 +1,21 @@
+{
+  "name": "@mallaka/notifier",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Mallaka notifier service (SMS / WhatsApp / push)",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "echo 'Notifier service not yet implemented'",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'No tests yet'",
+    "db:migrate": "echo 'db:migrate stubbed'"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0",
+    "eslint": "^8.57.0",
+    "prettier": "^3.2.0"
+  }
+}

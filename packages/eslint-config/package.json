@@ -1,0 +1,18 @@
+{
+  "name": "@mallaka/eslint-config",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Mallaka shared ESLint config",
+  "main": "index.js",
+  "scripts": {
+    "dev": "echo 'ESLint config not yet implemented'",
+    "lint": "echo 'No lint yet'",
+    "typecheck": "echo 'No typecheck yet'",
+    "test": "echo 'No tests yet'",
+    "db:migrate": "echo 'db:migrate stubbed'"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "prettier": "^3.2.0"
+  }
+}

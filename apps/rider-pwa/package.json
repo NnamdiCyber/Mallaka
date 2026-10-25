@@ -1,0 +1,25 @@
+{
+  "name": "@mallaka/rider-pwa",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Mallaka Rider PWA",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "echo 'Rider PWA not yet implemented'",
+    "lint": "eslint src --ext .ts --ext .tsx --ext .js --ext .jsx",
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'No tests yet'",
+    "db:migrate": "echo 'db:migrate stubbed'"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "next": "^14.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.2.0",
+    "typescript": "^5.3.0",
+    "eslint": "^8.57.0",
+    "prettier": "^3.2.0"
+  }
+}

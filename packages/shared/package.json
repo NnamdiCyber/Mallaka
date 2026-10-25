@@ -1,0 +1,20 @@
+{
+  "name": "@mallaka/shared",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Mallaka shared types, utils, config schemas",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "echo 'Shared package not yet implemented'",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'No tests yet'",
+    "db:migrate": "echo 'db:migrate stubbed'"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0",
+    "eslint": "^8.57.0",
+    "prettier": "^3.2.0"
+  }
+}

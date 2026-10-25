@@ -1,0 +1,17 @@
+{
+  "name": "@mallaka/contract-bindings",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Mallaka generated TypeScript contract bindings",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "echo 'Contract bindings not yet generated'",
+    "lint": "echo 'No lint yet'",
+    "typecheck": "echo 'No typecheck yet'",
+    "test": "echo 'No tests yet'",
+    "db:migrate": "echo 'db:migrate stubbed'"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}
