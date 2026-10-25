@@ -1,0 +1,29 @@
+[workspace]
+resolver = "2"
+members = [
+    "lease",
+    "title-registry",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Mallaka lease-to-own smart contracts on Soroban"
+repository = "https://github.com/mallaka/mallaka"
+
+[workspace.dependencies]
+soroban-sdk = { version = "21.0.0" }
+thiserror = "1.0"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+overflow-checks = true
+
+[profile.test]
+opt-level = 0
+debug = true
+overflow-checks = true

@@ -1,0 +1,15 @@
+[package]
+name = "lease"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+description = "Mallaka lease contract: core lease logic, payments, state transitions, title release"
+repository = { workspace = true }
+publish = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+thiserror = { workspace = true }
+title-registry = { path = "../title-registry" }
+
+[dev-dependencies]
