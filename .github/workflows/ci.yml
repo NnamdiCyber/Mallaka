@@ -42,10 +42,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
 
       - name: Install pnpm
-        run: npm i -g pnpm@9
+        run: corepack enable && corepack prepare pnpm@9 --activate
 
       - name: Cache pnpm store
         uses: actions/cache@v4
