@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Rust / Cargo setup and caching
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-registry-${{ hashFiles('contracts/Cargo.toml') }}
+
+      - name: Cache Cargo build
+        uses: actions/cache@v4
+        with:
+          path: contracts/target
+          key: cargo-build-${{ hashFiles('contracts/Cargo.lock') }}
+
+      # pnpm / Node setup and caching
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install pnpm
+        run: npm i -g pnpm@9
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+
+      # Rust checks
+      - name: cargo fmt --check
+        run: cargo fmt --check
+        working-directory: contracts
+
+      - name: cargo clippy -- -D warnings
+        run: cargo clippy -- -D warnings
+        working-directory: contracts
+
+      - name: cargo test
+        run: cargo test
+        working-directory: contracts
+
+      - name: stellar contract build
+        run: stellar contract build
+        working-directory: contracts
+
+      # TypeScript checks
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      - name: pnpm lint
+        run: pnpm lint
+
+      - name: pnpm typecheck
+        run: pnpm typecheck
+
+      - name: pnpm test
+        run: pnpm test
