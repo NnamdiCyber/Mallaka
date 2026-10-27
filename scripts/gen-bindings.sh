@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+DEPLOYED_FILE="$ROOT_DIR/.deployed.testnet.json"
+LEASE_OUT="$ROOT_DIR/packages/contract-bindings/lease"
+TITLE_OUT="$ROOT_DIR/packages/contract-bindings/title-registry"
+
+TITLE_WASM="$ROOT_DIR/contracts/target/wasm32v1-none/release/title_registry.wasm"
+LEASE_WASM="$ROOT_DIR/contracts/target/wasm32v1-none/release/lease.wasm"
+
+if [[ ! -f "$TITLE_WASM" || ! -f "$LEASE_WASM" ]]; then
+    echo "Building WASM contracts first..."
+    (cd "$ROOT_DIR/contracts" && stellar contract build --package title-registry && stellar contract build --package lease)
+fi
+
+if [[ -f "$DEPLOYED_FILE" ]]; then
+    LEASE_ID=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$DEPLOYED_FILE')).leaseContractId)")
+    TITLE_ID=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$DEPLOYED_FILE')).titleRegistryContractId)")
+
+    echo "=== Generating TS Bindings from Testnet Contracts ==="
+    echo "Lease Contract ID: $LEASE_ID"
+    stellar contract bindings typescript \
+      --network testnet \
+      --contract-id "$LEASE_ID" \
+      --output-dir "$LEASE_OUT" \
+      --overwrite || {
+        echo "Network binding generation failed, falling back to local WASM..."
+        stellar contract bindings typescript --wasm "$LEASE_WASM" --output-dir "$LEASE_OUT" --overwrite
+    }
+
+    echo "Title Registry Contract ID: $TITLE_ID"
+    stellar contract bindings typescript \
+      --network testnet \
+      --contract-id "$TITLE_ID" \
+      --output-dir "$TITLE_OUT" \
+      --overwrite || {
+        echo "Network binding generation failed, falling back to local WASM..."
+        stellar contract bindings typescript --wasm "$TITLE_WASM" --output-dir "$TITLE_OUT" --overwrite
+    }
+else
+    echo "=== Generating TS Bindings from Local WASM Artifacts ==="
+    stellar contract bindings typescript \
+      --wasm "$LEASE_WASM" \
+      --output-dir "$LEASE_OUT" \
+      --overwrite
+
+    stellar contract bindings typescript \
+      --wasm "$TITLE_WASM" \
+      --output-dir "$TITLE_OUT" \
+      --overwrite
+fi
+
+echo "✅ Generated bindings successfully in packages/contract-bindings/"

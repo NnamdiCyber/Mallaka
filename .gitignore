@@ -15,6 +15,7 @@ turbo/
 .env
 .env.local
 .env.*.local
+.deployed*.json
 
 # logs
 *.log
