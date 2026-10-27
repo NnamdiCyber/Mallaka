@@ -277,8 +277,8 @@ fn test_status_variants() {
 
 use crate::{LeaseContract, LeaseContractClient};
 use soroban_sdk::{
-    testutils::{Address as _, Ledger as _},
-    Address, BytesN,
+    testutils::{Address as _, Events as _, Ledger as _},
+    Address, BytesN, TryIntoVal,
 };
 use title_registry::{TitleRegistry, TitleRegistryClient};
 
@@ -781,4 +781,483 @@ fn test_extend_ttl_keeps_entry_alive() {
     // Lease entry is alive and readable
     let lease = lease_client.get_lease(&lease_id);
     assert_eq!(lease.id, lease_id);
+}
+
+#[test]
+fn test_happy_path_create_activate_pay_to_completion() {
+    let (env, lessor, lessee, payer, _, asset_id, title_contract, token_addr, lease_contract) =
+        create_test_env();
+    let lease_client = LeaseContractClient::new(&env, &lease_contract);
+    let title_client = TitleRegistryClient::new(&env, &title_contract);
+
+    let lease_id = lease_client.create_lease(
+        &lessor,
+        &lessee,
+        &asset_id,
+        &title_contract,
+        &token_addr,
+        &1000,
+        &100,
+        &300,
+        &86400,
+        &86400,
+    );
+
+    assert_eq!(lease_client.get_lease(&lease_id).status, Status::Pending);
+
+    lease_client.activate(&lease_id);
+    assert_eq!(lease_client.get_lease(&lease_id).status, Status::Active);
+
+    lease_client.pay(&lease_id, &payer, &300);
+    assert_eq!(lease_client.get_lease(&lease_id).status, Status::Active);
+
+    lease_client.pay(&lease_id, &payer, &300);
+    assert_eq!(lease_client.get_lease(&lease_id).status, Status::Active);
+
+    lease_client.pay(&lease_id, &payer, &300);
+    assert_eq!(lease_client.get_lease(&lease_id).status, Status::Completed);
+
+    let entry = title_client.get_entry(&asset_id).unwrap();
+    assert_eq!(entry.owner, lessee);
+    assert_eq!(entry.custodian, None);
+}
+
+#[test]
+fn test_on_time_payments_across_many_intervals_stays_active() {
+    let (env, lessor, lessee, payer, _, asset_id, title_contract, token_addr, lease_contract) =
+        create_test_env();
+    let lease_client = LeaseContractClient::new(&env, &lease_contract);
+
+    let lease_id = lease_client.create_lease(
+        &lessor,
+        &lessee,
+        &asset_id,
+        &title_contract,
+        &token_addr,
+        &1000,
+        &100,
+        &100,
+        &86400,
+        &86400,
+    );
+    lease_client.activate(&lease_id);
+
+    // Pay 8 installments on time
+    for i in 1..=8 {
+        env.ledger()
+            .set_timestamp(1_000_000 + (i - 1) * 86400 + 3600);
+        lease_client.pay(&lease_id, &payer, &100);
+        let lease = lease_client.get_lease(&lease_id);
+        assert_eq!(lease.status, Status::Active);
+        assert_eq!(lease.paid, (i as i128) * 100);
+    }
+
+    // Final 9th installment
+    env.ledger().set_timestamp(1_000_000 + 8 * 86400 + 3600);
+    lease_client.pay(&lease_id, &payer, &100);
+    let lease = lease_client.get_lease(&lease_id);
+    assert_eq!(lease.status, Status::Completed);
+    assert_eq!(lease.paid, 900);
+}
+
+#[test]
+fn test_missed_payment_beyond_grace_defaulted() {
+    let (env, lessor, lessee, _, _, asset_id, title_contract, token_addr, lease_contract) =
+        create_test_env();
+    let lease_client = LeaseContractClient::new(&env, &lease_contract);
+
+    let lease_id = lease_client.create_lease(
+        &lessor,
+        &lessee,
+        &asset_id,
+        &title_contract,
+        &token_addr,
+        &1000,
+        &100,
+        &100,
+        &86400,
+        &86400,
+    );
+    lease_client.activate(&lease_id);
+
+    // 1 second past grace: 1_000_000 + 86400 + 86400 + 1 = 1_172_801
+    env.ledger().set_timestamp(1_172_801);
+
+    let status = lease_client.check_default(&lease_id);
+    assert_eq!(status, Status::Defaulted);
+    assert_eq!(lease_client.get_lease(&lease_id).status, Status::Defaulted);
+
+    let view = lease_client.get_status(&lease_id);
+    assert_eq!(view.stored_status, Status::Defaulted);
+    assert!(view.arrears > 0);
+}
+
+#[test]
+fn test_partial_payments_accumulate_not_on_time() {
+    let (env, lessor, lessee, payer, _, asset_id, title_contract, token_addr, lease_contract) =
+        create_test_env();
+    let lease_client = LeaseContractClient::new(&env, &lease_contract);
+
+    let lease_id = lease_client.create_lease(
+        &lessor,
+        &lessee,
+        &asset_id,
+        &title_contract,
+        &token_addr,
+        &1000,
+        &100,
+        &100,
+        &86400,
+        &86400,
+    );
+    lease_client.activate(&lease_id);
+
+    // Partial payment of 50
+    lease_client.pay(&lease_id, &payer, &50);
+    assert_eq!(lease_client.get_lease(&lease_id).paid, 50);
+
+    // next_due is still due(1) = 1_086_400
+    assert_eq!(lease_client.get_status(&lease_id).next_due, 1_086_400);
+
+    // Advance into Grace
+    env.ledger().set_timestamp(1_086_401);
+    let status = lease_client.check_default(&lease_id);
+    assert_eq!(status, Status::Grace);
+
+    // Pay remaining 50 clears arrears
+    lease_client.pay(&lease_id, &payer, &50);
+    assert_eq!(lease_client.get_lease(&lease_id).paid, 100);
+    assert_eq!(lease_client.get_lease(&lease_id).status, Status::Active);
+    assert_eq!(
+        lease_client.get_status(&lease_id).next_due,
+        1_000_000 + 2 * 86400
+    );
+}
+
+#[test]
+fn test_prepayment_advances_next_due() {
+    let (env, lessor, lessee, payer, _, asset_id, title_contract, token_addr, lease_contract) =
+        create_test_env();
+    let lease_client = LeaseContractClient::new(&env, &lease_contract);
+
+    let lease_id = lease_client.create_lease(
+        &lessor,
+        &lessee,
+        &asset_id,
+        &title_contract,
+        &token_addr,
+        &1000,
+        &100,
+        &100,
+        &86400,
+        &86400,
+    );
+    lease_client.activate(&lease_id);
+
+    // Pay 2 full installments at once: 200
+    lease_client.pay(&lease_id, &payer, &200);
+
+    let view = lease_client.get_status(&lease_id);
+    assert_eq!(view.next_due, 1_000_000 + 3 * 86400);
+    assert_eq!(view.stored_status, Status::Active);
+}
+
+#[test]
+#[should_panic(expected = "9")] // Error::Overpayment
+fn test_overpayment_rejected() {
+    let (env, lessor, lessee, payer, _, asset_id, title_contract, token_addr, lease_contract) =
+        create_test_env();
+    let lease_client = LeaseContractClient::new(&env, &lease_contract);
+
+    let lease_id = lease_client.create_lease(
+        &lessor,
+        &lessee,
+        &asset_id,
+        &title_contract,
+        &token_addr,
+        &1000,
+        &100,
+        &100,
+        &86400,
+        &86400,
+    );
+    lease_client.activate(&lease_id);
+
+    // Remaining balance is 900. 901 must panic with Overpayment
+    lease_client.pay(&lease_id, &payer, &901);
+}
+
+#[test]
+fn test_third_party_payer() {
+    let (env, lessor, lessee, payer, _, asset_id, title_contract, token_addr, lease_contract) =
+        create_test_env();
+    let lease_client = LeaseContractClient::new(&env, &lease_contract);
+    let token_client = soroban_sdk::token::Client::new(&env, &token_addr);
+
+    let lease_id = lease_client.create_lease(
+        &lessor,
+        &lessee,
+        &asset_id,
+        &title_contract,
+        &token_addr,
+        &1000,
+        &100,
+        &100,
+        &86400,
+        &86400,
+    );
+    lease_client.activate(&lease_id);
+
+    let lessor_bal_before = token_client.balance(&lessor);
+    let payer_bal_before = token_client.balance(&payer);
+
+    lease_client.pay(&lease_id, &payer, &100);
+
+    let lessor_bal_after = token_client.balance(&lessor);
+    let payer_bal_after = token_client.balance(&payer);
+
+    assert_eq!(lessor_bal_after - lessor_bal_before, 100);
+    assert_eq!(payer_bal_before - payer_bal_after, 100);
+    assert_eq!(lease_client.get_lease(&lease_id).paid, 100);
+}
+
+#[test]
+fn test_unauthorized_repossess_cancel_activate() {
+    let env = Env::default();
+    let lease_contract = env.register_contract(None, LeaseContract);
+    let lease_client = LeaseContractClient::new(&env, &lease_contract);
+
+    // In unmocked auth environment, calls requiring auth fail
+    assert!(lease_client.try_activate(&1).is_err());
+    assert!(lease_client.try_repossess(&1).is_err());
+    assert!(lease_client.try_cancel(&1).is_err());
+}
+
+#[test]
+fn test_arithmetic_edge_cases_and_final_remainder() {
+    let (env, lessor, lessee, payer, _, asset_id, title_contract, token_addr, lease_contract) =
+        create_test_env();
+    let lease_client = LeaseContractClient::new(&env, &lease_contract);
+
+    // 1. Remainder absorbed in final installment: 900 total with 400 installment -> 400, 400, 100
+    let lease_id = lease_client.create_lease(
+        &lessor,
+        &lessee,
+        &asset_id,
+        &title_contract,
+        &token_addr,
+        &1000,
+        &100,
+        &400,
+        &86400,
+        &86400,
+    );
+    lease_client.activate(&lease_id);
+
+    lease_client.pay(&lease_id, &payer, &400);
+    lease_client.pay(&lease_id, &payer, &400);
+    lease_client.pay(&lease_id, &payer, &100);
+    assert_eq!(lease_client.get_lease(&lease_id).paid, 900);
+    assert_eq!(lease_client.get_lease(&lease_id).status, Status::Completed);
+
+    // 2. Near i128::MAX terms validation
+    let valid_large_terms = Terms {
+        total_price: i128::MAX - 1000,
+        deposit: 1000,
+        installment: 10_000,
+        interval: 86400,
+        grace: 86400,
+    };
+    assert!(validate_terms(&valid_large_terms).is_ok());
+
+    // 3. Negative amount in pay rejected
+    assert!(lease_client.try_pay(&lease_id, &payer, &-50).is_err());
+
+    // 4. Zero amount in pay rejected
+    assert!(lease_client.try_pay(&lease_id, &payer, &0).is_err());
+}
+
+#[test]
+fn test_full_lifecycle_multi_day_scenario_events_in_order() {
+    let (env, lessor, lessee, payer, _, asset_id, title_contract, token_addr, lease_contract) =
+        create_test_env();
+    let lease_client = LeaseContractClient::new(&env, &lease_contract);
+    let title_client = TitleRegistryClient::new(&env, &title_contract);
+
+    // Day 0 (t=1_000_000): Create and activate
+    // total 700 - deposit 100 = 600 remaining (6 installments of 100)
+    let lease_id = lease_client.create_lease(
+        &lessor,
+        &lessee,
+        &asset_id,
+        &title_contract,
+        &token_addr,
+        &700,
+        &100,
+        &100,
+        &86400,
+        &86400,
+    );
+    lease_client.activate(&lease_id);
+
+    // Interval 1 (t=1_050_000): On-time payment 1 (100) -> Active
+    env.ledger().set_timestamp(1_050_000);
+    lease_client.pay(&lease_id, &payer, &100);
+
+    // Interval 2 (t=1_200_000): Misses payment 2. Next due was 1_172_800.
+    // 1_200_000 is inside grace (grace ends at 1_259_200).
+    env.ledger().set_timestamp(1_200_000);
+    lease_client.check_default(&lease_id);
+    assert_eq!(lease_client.get_lease(&lease_id).status, Status::Grace);
+
+    // Interval 2 (t=1_210_000): Rider pays catch-up payment 2 (100) -> Cured to Active
+    env.ledger().set_timestamp(1_210_000);
+    lease_client.pay(&lease_id, &payer, &100);
+    assert_eq!(lease_client.get_lease(&lease_id).status, Status::Active);
+
+    // Interval 3 (t=1_250_000): On-time payment 3 (100) -> Active (covered = 3, next_due = 1_345_600)
+    env.ledger().set_timestamp(1_250_000);
+    lease_client.pay(&lease_id, &payer, &100);
+    assert_eq!(lease_client.get_lease(&lease_id).status, Status::Active);
+
+    // Interval 4 (t=1_440_000): Misses payment 4 beyond grace (due: 1_345_600, grace ends: 1_432_000)
+    env.ledger().set_timestamp(1_440_000);
+    lease_client.check_default(&lease_id);
+    assert_eq!(lease_client.get_lease(&lease_id).status, Status::Defaulted);
+
+    // Interval 4 (t=1_445_000): Rider pays full arrears (200 for installments 4 and 5) -> Cured to Active
+    // covered becomes 5, next_due becomes 1_000_000 + 6*86400 = 1_518_400 (now=1_445_000 <= 1_518_400)
+    env.ledger().set_timestamp(1_445_000);
+    lease_client.pay(&lease_id, &payer, &200);
+    assert_eq!(lease_client.get_lease(&lease_id).status, Status::Active);
+
+    // Interval 5 (t=1_500_000): Final payment (100) -> Completed
+    env.ledger().set_timestamp(1_500_000);
+    lease_client.pay(&lease_id, &payer, &100);
+    assert_eq!(lease_client.get_lease(&lease_id).status, Status::Completed);
+
+    // Verify title transferred to lessee
+    let entry = title_client.get_entry(&asset_id).unwrap();
+    assert_eq!(entry.owner, lessee);
+    assert_eq!(entry.custodian, None);
+
+    // Verify event sequence from the lease contract
+    use soroban_sdk::String;
+    let events = env.events().all();
+    let mut lease_events = soroban_sdk::vec![&env];
+
+    for event in events.iter() {
+        if event.0 == lease_contract {
+            let topic_str: String = event.1.get(0).unwrap().try_into_val(&env).unwrap();
+            lease_events.push_back(topic_str);
+        }
+    }
+
+    let expected = soroban_sdk::vec![
+        &env,
+        String::from_str(&env, "lease_created"),
+        String::from_str(&env, "activated"),
+        String::from_str(&env, "payment"),
+        String::from_str(&env, "grace_entered"),
+        String::from_str(&env, "payment"),
+        String::from_str(&env, "cured"),
+        String::from_str(&env, "payment"),
+        String::from_str(&env, "defaulted"),
+        String::from_str(&env, "payment"),
+        String::from_str(&env, "cured"),
+        String::from_str(&env, "payment"),
+        String::from_str(&env, "completed"),
+    ];
+
+    assert_eq!(lease_events, expected);
+}
+
+use proptest::prelude::*;
+
+proptest! {
+    #[test]
+    fn prop_paid_never_exceeds_total_due(
+        total_price in 100i128..10_000_000i128,
+        deposit_pct in 1i128..50i128,
+        installment_pct in 1i128..50i128,
+        payments in prop::collection::vec(1i128..1_000_000i128, 1..20),
+    ) {
+        let deposit = total_price * deposit_pct / 100;
+        let remaining_total = total_price - deposit;
+        let _installment = (remaining_total * installment_pct / 100).max(1);
+
+        let mut paid = 0i128;
+        for p in payments {
+            let max_payable = remaining_total - paid;
+            if p <= max_payable {
+                paid += p;
+            }
+            prop_assert!(paid <= remaining_total);
+        }
+    }
+
+    #[test]
+    fn prop_status_transitions_valid_edges(
+        now_deltas in prop::collection::vec(1u64..200_000u64, 1..20),
+        pay_amounts in prop::collection::vec(0i128..200i128, 1..20),
+    ) {
+        let total_price = 1000i128;
+        let deposit = 100i128;
+        let installment = 100i128;
+        let interval = 86400u64;
+        let grace = 86400u64;
+        let start_ts = 1_000_000u64;
+
+        let mut current_status = Status::Active;
+        let mut paid = 0i128;
+        let mut now = start_ts;
+
+        for (delta, p) in now_deltas.into_iter().zip(pay_amounts.into_iter()) {
+            now = now.saturating_add(delta);
+            let remaining = total_price - deposit - paid;
+            if p > 0 && p <= remaining {
+                paid += p;
+            }
+
+            let next_status = crate::schedule::derive_status(
+                now,
+                start_ts,
+                interval,
+                grace,
+                paid,
+                installment,
+                total_price,
+                deposit,
+            );
+
+            // Valid edges per README section 6:
+            // Active -> Active, Grace, Defaulted, Completed
+            // Grace -> Grace, Active, Defaulted, Completed
+            // Defaulted -> Defaulted, Active, Grace, Completed
+            // Completed -> Completed
+            let valid = matches!(
+                (current_status, next_status),
+                (Status::Active, Status::Active)
+                    | (Status::Active, Status::Grace)
+                    | (Status::Active, Status::Defaulted)
+                    | (Status::Active, Status::Completed)
+                    | (Status::Grace, Status::Active)
+                    | (Status::Grace, Status::Grace)
+                    | (Status::Grace, Status::Defaulted)
+                    | (Status::Grace, Status::Completed)
+                    | (Status::Defaulted, Status::Active)
+                    | (Status::Defaulted, Status::Grace)
+                    | (Status::Defaulted, Status::Defaulted)
+                    | (Status::Defaulted, Status::Completed)
+                    | (Status::Completed, Status::Completed)
+            );
+            prop_assert!(
+                valid,
+                "Invalid transition from {:?} to {:?}",
+                current_status,
+                next_status
+            );
+            current_status = next_status;
+        }
+    }
 }

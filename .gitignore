@@ -38,6 +38,7 @@ Thumbs.db
 target/
 Cargo.lock
 test_snapshots/
+proptest-regressions/
 
 # Docker
 docker-compose.override.yml
