@@ -97,6 +97,34 @@ pub fn total_installments(
     Ok(total as u64)
 }
 
+/// Calculate arrears (overdue amount in token base units).
+/// If now <= next_due, arrears is 0.
+/// When overdue, calculates the cumulative amount expected to have been paid
+/// by `now` based on elapsed intervals (capped at total_price - deposit),
+/// minus the amount actually paid.
+pub fn calculate_arrears(
+    now: u64,
+    start_ts: u64,
+    interval: u64,
+    paid: i128,
+    installment: i128,
+    total_price: i128,
+    deposit: i128,
+) -> i128 {
+    if interval == 0 || start_ts == 0 || now <= start_ts {
+        return 0;
+    }
+    let total_remaining_due = total_price.saturating_sub(deposit);
+    let intervals_passed = (now.saturating_sub(start_ts)) / interval;
+    if intervals_passed == 0 {
+        return 0;
+    }
+    let expected_paid = (intervals_passed as i128)
+        .saturating_mul(installment)
+        .min(total_remaining_due);
+    expected_paid.saturating_sub(paid).max(0)
+}
+
 /// Validate lease terms per README 7.2 and 8.3.
 /// Returns Error::InvalidTerms if validation fails.
 pub fn validate_terms(terms: &Terms) -> Result<(), Error> {

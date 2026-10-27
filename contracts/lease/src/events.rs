@@ -13,13 +13,13 @@ pub fn lease_created(
 ) {
     let topics = (lease_id, lessor.clone(), lessee.clone());
     // Create a hash of terms for data
-    let mut buf = [0u8; 80];
+    let mut buf = [0u8; 72];
     buf[0..16].copy_from_slice(&terms.total_price.to_be_bytes());
     buf[16..32].copy_from_slice(&terms.deposit.to_be_bytes());
     buf[32..48].copy_from_slice(&terms.installment.to_be_bytes());
     buf[48..56].copy_from_slice(&terms.interval.to_be_bytes());
     buf[56..64].copy_from_slice(&terms.grace.to_be_bytes());
-    buf[64..80].copy_from_slice(&lease_id.to_be_bytes());
+    buf[64..72].copy_from_slice(&lease_id.to_be_bytes());
     let terms_bytes = Bytes::from_slice(env, &buf);
     let hash = env.crypto().sha256(&terms_bytes);
     env.events().publish(("lease_created", topics), hash);

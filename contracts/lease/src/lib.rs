@@ -8,6 +8,7 @@ mod errors;
 mod events;
 mod schedule;
 mod storage;
+mod title;
 mod token;
 mod types;
 
@@ -56,6 +57,10 @@ impl LeaseContract {
         };
         crate::schedule::validate_terms(&terms).expect("invalid terms");
 
+        // Escrow the title in this contract
+        let title_client = crate::title::TitleClient::new(&env, &title_contract);
+        title_client.set_custodian(&asset_id, &env.current_contract_address());
+
         let lease_id = storage::get_next_lease_id(&env);
         storage::set_next_lease_id(&env, &(lease_id + 1));
 
@@ -94,6 +99,12 @@ impl LeaseContract {
             panic!("{}", Error::InvalidState as u32);
         }
 
+        // Transfer deposit from lessee to lessor if deposit > 0
+        if lease.deposit > 0 {
+            let token_client = crate::token::TokenClient::new(&env, &lease.token);
+            token_client.transfer(&lease.lessee, &lease.lessor, &lease.deposit);
+        }
+
         // Set start timestamp and status
         lease.start_ts = env.ledger().timestamp();
         lease.status = Status::Active;
@@ -119,7 +130,12 @@ impl LeaseContract {
             _ => panic!("{}", Error::InvalidState as u32),
         }
 
-        let remaining = lease.total_price - lease.deposit - lease.paid;
+        let remaining = lease
+            .total_price
+            .checked_sub(lease.deposit)
+            .expect("overflow")
+            .checked_sub(lease.paid)
+            .expect("overflow");
         if amount > remaining {
             panic!("{}", Error::Overpayment as u32);
         }
@@ -130,9 +146,12 @@ impl LeaseContract {
 
         lease.paid = lease.paid.checked_add(amount).expect("overflow");
 
+        let prev_status = lease.status;
+        let now = env.ledger().timestamp();
+
         // Recompute status
         let derived = crate::schedule::derive_status(
-            env.ledger().timestamp(),
+            now,
             lease.start_ts,
             lease.interval,
             lease.grace,
@@ -155,58 +174,64 @@ impl LeaseContract {
         events::payment(&env, lease_id, &payer, amount, lease.paid, next_due);
 
         // Check for cured event (ADR-001)
-        if derived == Status::Active {
+        if (prev_status == Status::Grace || prev_status == Status::Defaulted)
+            && derived == Status::Active
+        {
             events::cured(&env, lease_id, lease.paid);
         }
 
-        // Check for completion (ADR-003)
-        if lease.paid >= lease.total_price - lease.deposit && derived == Status::Completed {
+        // Check for completion (ADR-003): transfer title to lessee
+        if derived == Status::Completed {
+            let title_client = crate::title::TitleClient::new(&env, &lease.title_contract);
+            title_client.transfer(&lease.asset_id, &lease.lessor, &lease.lessee);
             events::completed(&env, lease_id, &lease.lessee, lease.paid);
         }
     }
 
-    /// Check for default. Permissionless.
-    pub fn check_default(env: Env, lease_id: u64) {
+    /// Check for default. Permissionless. Idempotent.
+    pub fn check_default(env: Env, lease_id: u64) -> Status {
         let mut lease = storage::load_lease(&env, lease_id).expect("lease not found");
 
         match lease.status {
             Status::Active | Status::Grace => {}
-            _ => return,
+            _ => return lease.status,
         }
 
-        let derived = crate::schedule::derive_status(
-            env.ledger().timestamp(),
+        let now = env.ledger().timestamp();
+        let nd = crate::schedule::next_due(
             lease.start_ts,
             lease.interval,
-            lease.grace,
             lease.paid,
             lease.installment,
-            lease.total_price,
-            lease.deposit,
         );
+        let grace_end = nd.saturating_add(lease.grace);
 
-        if derived != lease.status {
-            lease.status = derived;
+        if now > grace_end {
+            if lease.status != Status::Defaulted {
+                lease.status = Status::Defaulted;
+                storage::save_lease(&env, &lease);
+                storage::extend_ttl(&env, lease_id);
+
+                let arrears = crate::schedule::calculate_arrears(
+                    now,
+                    lease.start_ts,
+                    lease.interval,
+                    lease.paid,
+                    lease.installment,
+                    lease.total_price,
+                    lease.deposit,
+                );
+                events::defaulted(&env, lease_id, arrears);
+            }
+        } else if now > nd && lease.status == Status::Active {
+            lease.status = Status::Grace;
             storage::save_lease(&env, &lease);
             storage::extend_ttl(&env, lease_id);
 
-            match derived {
-                Status::Grace => {
-                    let nd = crate::schedule::next_due(
-                        lease.start_ts,
-                        lease.interval,
-                        lease.paid,
-                        lease.installment,
-                    );
-                    events::grace_entered(&env, lease_id, nd, nd + lease.grace);
-                }
-                Status::Defaulted => {
-                    let arrears = lease.total_price - lease.deposit - lease.paid;
-                    events::defaulted(&env, lease_id, arrears);
-                }
-                _ => {}
-            }
+            events::grace_entered(&env, lease_id, nd, grace_end);
         }
+
+        lease.status
     }
 
     /// Repossess a defaulted lease. Called by lessor after minimum period.
@@ -218,17 +243,32 @@ impl LeaseContract {
             panic!("{}", Error::NotDefaulted as u32);
         }
 
-        // Check repossession_wait period
-        let elapsed = env.ledger().timestamp().saturating_sub(lease.start_ts);
-        if elapsed < lease.repossession_wait {
+        // Check repossession_wait period per ADR-002: now > next_due + grace + repossession_wait
+        let now = env.ledger().timestamp();
+        let nd = crate::schedule::next_due(
+            lease.start_ts,
+            lease.interval,
+            lease.paid,
+            lease.installment,
+        );
+        let min_repossess_ts = nd
+            .saturating_add(lease.grace)
+            .saturating_add(lease.repossession_wait);
+        if now <= min_repossess_ts {
             panic!("{}", Error::RepossessionTooEarly as u32);
         }
+
+        // Release title from escrow back to the lessor
+        let title_client = crate::title::TitleClient::new(&env, &lease.title_contract);
+        title_client.clear_custodian(&lease.asset_id);
 
         lease.status = Status::Repossessed;
         storage::save_lease(&env, &lease);
         storage::extend_ttl(&env, lease_id);
 
-        events::repossessed(&env, lease_id, env.ledger().timestamp());
+        events::repossessed(&env, lease_id, now);
+
+        // TODO: Section 22 item 1 - Equity on repossession. Contract currently does not calculate or execute refund or equity settlement on repossession.
     }
 
     /// Cancel a pending lease. Called by lessor.
@@ -239,6 +279,10 @@ impl LeaseContract {
         if lease.status != Status::Pending {
             panic!("{}", Error::InvalidState as u32);
         }
+
+        // Release title from escrow back to the lessor
+        let title_client = crate::title::TitleClient::new(&env, &lease.title_contract);
+        title_client.clear_custodian(&lease.asset_id);
 
         lease.status = Status::Cancelled;
         storage::save_lease(&env, &lease);
@@ -269,14 +313,15 @@ impl LeaseContract {
             lease.paid,
             lease.installment,
         );
-        let covered = crate::schedule::covered_installments(lease.paid, lease.installment);
-        let due_ts = crate::schedule::due_timestamp(lease.start_ts, lease.interval, covered + 1)
-            .unwrap_or(0);
-        let arrears = if now > due_ts {
-            (now - due_ts) as i128
-        } else {
-            0
-        };
+        let arrears = crate::schedule::calculate_arrears(
+            now,
+            lease.start_ts,
+            lease.interval,
+            lease.paid,
+            lease.installment,
+            lease.total_price,
+            lease.deposit,
+        );
 
         let derived = crate::schedule::derive_status(
             now,

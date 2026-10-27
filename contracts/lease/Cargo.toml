@@ -9,7 +9,8 @@ publish = false
 
 [dependencies]
 soroban-sdk = { workspace = true }
-thiserror = { workspace = true }
-title-registry = { path = "../title-registry" }
 
 [dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+title-registry = { path = "../title-registry" }
+proptest = "1.4"

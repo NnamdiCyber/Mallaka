@@ -1,19 +1,21 @@
 //! Token interface for the Mallaka lease contract.
 //! Defines the standard Soroban token interface for USDC SAC transfers.
 
-use soroban_sdk::{Address, Env};
+use soroban_sdk::{token::Client as SorobanTokenClient, Address, Env};
 
-pub struct TokenClient;
+pub struct TokenClient<'a> {
+    client: SorobanTokenClient<'a>,
+}
 
-impl TokenClient {
-    pub fn new(_env: &Env, _contract: &Address) -> Self {
-        TokenClient
+impl<'a> TokenClient<'a> {
+    pub fn new(env: &'a Env, contract: &Address) -> Self {
+        TokenClient {
+            client: SorobanTokenClient::new(env, contract),
+        }
     }
 
     /// Transfer `amount` from `from` to `to`. Requires `from.require_auth()`.
-    pub fn transfer(&self, _from: &Address, _to: &Address, _amount: &i128) {
-        // The actual token transfer is performed by the Soroban token contract.
-        // This client type is a compile-time interface marker; the real
-        // cross-contract call happens at runtime through the Soroban SDK.
+    pub fn transfer(&self, from: &Address, to: &Address, amount: &i128) {
+        self.client.transfer(from, to, amount);
     }
 }

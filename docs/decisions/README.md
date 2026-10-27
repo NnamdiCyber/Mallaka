@@ -10,6 +10,7 @@
 | 006 | Installment count uses ceil with remainder absorbed in final installment | Accepted (sprint default) | 8.1, 8.3 |
 | 007 | Minimal title registry | Accepted (sprint default) | 5, 6, 7.1 |
 | 008 | Custodial payer authorization for MVP | Accepted (sprint default) | 7.7, 12 |
+| 009 | Escrow custodian transfer and release in title registry | Accepted (sprint default) | 6, 7.1, 7.3 |
 
 ## Template
 

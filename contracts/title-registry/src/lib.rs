@@ -48,33 +48,50 @@ impl TitleRegistry {
         storage::owner_of(&env, &asset_id)
     }
 
-    /// Set an escrow custodian for an asset. Only the owner can call this.
+    /// Set an escrow custodian for an asset.
+    /// When no custodian is set, only the owner can call this.
+    /// When a custodian is already set, only that custodian can change it.
     pub fn set_custodian(env: Env, asset_id: BytesN<32>, custodian: Address) {
         let entry = storage::load_entry(&env, &asset_id).expect("entry not found");
-        entry.owner.require_auth();
+        if let Some(ref current_custodian) = entry.custodian {
+            current_custodian.require_auth();
+        } else {
+            entry.owner.require_auth();
+        }
         let mut entry = entry;
         entry.custodian = Some(custodian.clone());
         storage::save_entry(&env, &entry);
         events::custodian_set(&env, &asset_id, &custodian);
     }
 
-    /// Clear the escrow custodian for an asset. Only the owner can call this.
+    /// Clear the escrow custodian for an asset.
+    /// When a custodian is set (escrow active), only the custodian can clear it.
+    /// Otherwise, the owner can call this.
     pub fn clear_custodian(env: Env, asset_id: BytesN<32>) {
         let entry = storage::load_entry(&env, &asset_id).expect("entry not found");
-        entry.owner.require_auth();
+        if let Some(ref custodian) = entry.custodian {
+            custodian.require_auth();
+        } else {
+            entry.owner.require_auth();
+        }
         let mut entry = entry;
         entry.custodian = None;
         storage::save_entry(&env, &entry);
         events::custodian_cleared(&env, &asset_id);
     }
 
-    /// Transfer an asset title. Requires auth from `from`.
+    /// Transfer an asset title. Requires auth from owner (if not in escrow) or custodian (if in escrow).
     pub fn transfer(env: Env, asset_id: BytesN<32>, from: Address, to: Address) {
-        from.require_auth();
         let mut entry = storage::load_entry(&env, &asset_id).expect("entry not found");
 
         if entry.owner != from {
             panic!("{}", Error::NotOwner as u32);
+        }
+
+        if let Some(ref custodian) = entry.custodian {
+            custodian.require_auth();
+        } else {
+            from.require_auth();
         }
 
         entry.owner = to.clone();

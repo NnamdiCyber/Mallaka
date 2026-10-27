@@ -37,6 +37,7 @@ Thumbs.db
 # Rust
 target/
 Cargo.lock
+test_snapshots/
 
 # Docker
 docker-compose.override.yml
