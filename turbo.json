@@ -20,6 +20,9 @@
     },
     "db:migrate": {
       "outputs": []
+    },
+    "db:seed": {
+      "outputs": []
     }
   },
   "globalEnv": ["STELLAR_NETWORK", "SOROBAN_RPC_URL", "DATABASE_URL", "REDIS_URL"]
