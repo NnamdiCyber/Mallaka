@@ -3,15 +3,35 @@
   "private": true,
   "version": "0.1.0",
   "description": "Mallaka generated TypeScript contract bindings",
-  "main": "dist/index.js",
+  "type": "module",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    },
+    "./lease": {
+      "types": "./dist/lease/src/index.d.ts",
+      "import": "./dist/lease/src/index.js"
+    },
+    "./title-registry": {
+      "types": "./dist/title-registry/src/index.d.ts",
+      "import": "./dist/title-registry/src/index.js"
+    }
+  },
   "scripts": {
-    "dev": "echo 'Contract bindings not yet generated'",
-    "lint": "echo 'No lint yet'",
-    "typecheck": "echo 'No typecheck yet'",
-    "test": "echo 'No tests yet'",
-    "db:migrate": "echo 'db:migrate stubbed'"
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "test": "echo 'No tests yet'"
+  },
+  "dependencies": {
+    "@stellar/stellar-sdk": "^13.0.0",
+    "buffer": "^6.0.3"
   },
   "devDependencies": {
+    "@types/node": "^20.0.0",
     "typescript": "^5.3.0"
   }
 }
