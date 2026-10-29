@@ -267,16 +267,35 @@ importers:
         version: 5.9.3
 
   services/notifier:
+    dependencies:
+      '@mallaka/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      bullmq:
+        specifier: ^6.5.0
+        version: 6.5.0(ioredis@6.0.0)(pg@8.23.1)
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
     devDependencies:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.43
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
       eslint:
         specifier: ^8.57.0
         version: 8.57.1
+      pg-mem:
+        specifier: ^3.0.14
+        version: 3.0.14
       prettier:
         specifier: ^3.2.0
         version: 3.9.10
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
       typescript:
         specifier: ^5.3.0
         version: 5.9.3
