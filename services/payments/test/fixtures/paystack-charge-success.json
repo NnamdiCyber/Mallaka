@@ -1,0 +1,13 @@
+{
+  "event": "charge.success",
+  "data": {
+    "id": 302961,
+    "domain": "test",
+    "status": "success",
+    "reference": "mlk_fixture_0001",
+    "amount": 1500000,
+    "currency": "NGN",
+    "channel": "bank_transfer",
+    "paid_at": "2026-10-29T08:00:00.000Z"
+  }
+}
