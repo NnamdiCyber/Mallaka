@@ -50,26 +50,26 @@ describe("offline", () => {
 describe("payment flow against a mocked API", () => {
   it("starts checkout, waits, and shows success ONLY after the API reports settlement", async () => {
     const user = userEvent.setup();
-    const settled: ReturnType<typeof payment>[][] = [[], [], [payment("settled")]];
-    let poll = 0;
+    let allowSettle = false;
     const api = {
       initiatePayment: vi.fn().mockResolvedValue({ reference: "mlk_1", checkoutUrl: "https://checkout.example/pay" }),
-      payments: vi.fn(async () => settled[Math.min(poll++, settled.length - 1)]),
+      payments: vi.fn(async () => (allowSettle ? [payment("settled")] : [payment("processing")])),
       getLease: vi.fn().mockResolvedValue(lease("Active", { balance: { paid: { naira: "465000.00", token: "" }, remaining: { naira: "885000.00", token: "" }, arrears: { naira: "0.00", token: "" } } })),
     };
     const redirect = vi.fn();
     const onSettled = vi.fn();
-    render(<PayPanel api={api} lease={lease("Active")} t={t} onClose={() => {}} onSettled={onSettled} redirect={redirect} pollMs={10} />);
+    render(<PayPanel api={api} lease={lease("Active")} t={t} onClose={() => {}} onSettled={onSettled} redirect={redirect} pollMs={15} />);
 
     await user.click(screen.getByRole("button", { name: "Continue to payment" }));
     await waitFor(() => expect(redirect).toHaveBeenCalledWith("https://checkout.example/pay"));
     expect(api.initiatePayment).toHaveBeenCalledWith("7", "15000");
 
-    // Still waiting: no success message yet.
-    expect(screen.getByText(/Waiting for your bank/)).toBeInTheDocument();
+    // Still waiting: no success message yet while status is only processing.
+    expect(await screen.findByText(/Waiting for your bank/)).toBeInTheDocument();
     expect(screen.queryByText(/Payment received/)).toBeNull();
 
-    // After the API reports a settled payment:
+    // Flip settlement on and verify success appears ONLY now:
+    allowSettle = true;
     expect(await screen.findByText(/Payment received. Thank you! Your balance is now ₦885,000/)).toBeInTheDocument();
     expect(onSettled).toHaveBeenCalled();
     expect(screen.queryByText(/Waiting for your bank/)).toBeNull();

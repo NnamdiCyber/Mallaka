@@ -88,12 +88,17 @@ export class SorobanLeaseChain implements LeaseChain {
     ]);
     const l = lease as Record<string, unknown>;
     const v = view as Record<string, unknown>;
+    const storedStatus = decodeStatus(v.stored_status);
+    // Schedule derivation (Active/Grace/Defaulted/Completed) only applies once a lease has been activated.
+    // On-chain get_status calls derive_status with start_ts = 0 for Pending leases, which would otherwise read as Defaulted.
+    const scheduleActive = storedStatus === "Active" || storedStatus === "Grace" || storedStatus === "Defaulted";
+    const derivedStatus = scheduleActive ? decodeStatus(v.derived_status) : storedStatus;
     return {
       id: leaseId,
       lessor: String(l.lessor),
       lessee: String(l.lessee),
-      derivedStatus: decodeStatus(v.derived_status),
-      storedStatus: decodeStatus(v.stored_status),
+      derivedStatus,
+      storedStatus,
       totalPrice: String(l.total_price),
       deposit: String(l.deposit),
       installment: String(l.installment),
@@ -101,9 +106,9 @@ export class SorobanLeaseChain implements LeaseChain {
       graceSeconds: Number(l.grace),
       paid: String(l.paid),
       startTs: Number(l.start_ts),
-      nextDue: Number(v.next_due),
+      nextDue: scheduleActive ? Number(v.next_due) : 0,
       remainingBalance: String(v.remaining_balance),
-      arrears: String(v.arrears),
+      arrears: scheduleActive ? String(v.arrears) : "0",
       readAt: Math.floor(Date.now() / 1000),
     };
   }
@@ -165,8 +170,19 @@ export class SorobanLeaseChain implements LeaseChain {
     }
   }
 
-  submit(prepared: PreparedTx): Promise<TxOutcome> {
-    return this.opts.submitter.submit(prepared.txXdr);
+  async submit(prepared: PreparedTx): Promise<TxOutcome> {
+    const out = await this.opts.submitter.submit(prepared.txXdr);
+    let val = out.returnValue;
+    if (val instanceof xdr.ScVal) {
+      val = scValToNative(val as xdr.ScVal);
+    } else if (val !== undefined && val !== null && typeof val === "object") {
+      // BullMQ JSON-serializes xdr.ScVal instances; read the canonical ScVal from RPC by txHash.
+      const tx = await this.server.getTransaction(out.txHash);
+      if (tx.status === rpc.Api.GetTransactionStatus.SUCCESS && tx.returnValue) {
+        val = scValToNative(tx.returnValue);
+      }
+    }
+    return { txHash: out.txHash, returnValue: val };
   }
 
   async lookup(txHash: string): Promise<TxLookup> {
