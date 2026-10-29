@@ -1,0 +1,102 @@
+/** English: complete. Plain words, no jargon. {name} marks a value filled in at runtime. */
+export const en = {
+  "app.name": "Mallaka",
+  "nav.home": "Home",
+  "nav.payments": "Payments",
+  "nav.terms": "My lease terms",
+  "nav.language": "Language",
+  "nav.logout": "Log out",
+  "language.review": "This language is not ready yet. English is shown.",
+
+  "login.title": "Log in",
+  "login.phone": "Your phone number",
+  "login.phoneHint": "Start with + and your country code, for example +2348012345678",
+  "login.sendCode": "Send me a code",
+  "login.code": "6-digit code from the text message",
+  "login.verify": "Log in",
+  "login.codeSent": "We sent you a text message with a code.",
+  "login.badCode": "That code did not work. Check it and try again, or ask for a new one.",
+  "login.tooMany": "Too many tries. Please wait a minute and try again.",
+
+  "home.loading": "Loading your lease…",
+  "home.noLease": "You do not have a lease yet. Please talk to your lessor.",
+  "home.balance": "Balance remaining",
+  "home.nextDue": "Next payment due",
+  "home.nextAmount": "Amount: {amount}",
+  "home.progress": "Progress to ownership",
+  "home.progressText": "{pct}% paid. {paid} paid so far.",
+  "home.lastUpdated": "Last updated {when}",
+  "home.offline": "You are offline. This is the last information we saved.",
+  "home.stale": "We could not check for the newest information. This may be a little out of date.",
+  "home.noDue": "No payment due",
+  "home.asset": "Your {asset}",
+
+  "banner.grace.title": "Your payment is late, but you still have time",
+  "banner.grace.body":
+    "Your payment of {amount} was due on {due}. You have until {graceEnds} to pay. Nothing will happen to your vehicle before then.",
+  "banner.defaulted.title": "Please pay what is owed to keep using your vehicle",
+  "banner.defaulted.body":
+    "You are behind by {arrears}. Your vehicle may be locked when it is safely stopped. Pay {arrears} now and it unlocks right away. If you need help, please talk to your lessor.",
+  "banner.completed.title": "Congratulations! You have finished paying",
+  "banner.completed.body": "The vehicle is now yours.",
+  "banner.pending.title": "Your lease is waiting to start",
+  "banner.pending.body": "Read your lease terms, then tap the button to accept them and start.",
+  "banner.ended.title": "This lease has ended",
+  "banner.ended.body": "Please talk to your lessor if you have questions.",
+
+  "activate.button": "Accept the terms and start",
+  "activate.error": "We could not start your lease. Please try again or talk to your lessor.",
+
+  "pay.button": "Pay now",
+  "pay.title": "Make a payment",
+  "pay.amount": "Amount in naira",
+  "pay.installment": "Pay one payment ({amount})",
+  "pay.go": "Continue to payment",
+  "pay.waiting": "Waiting for your bank to confirm your payment. This usually takes less than a minute. Please keep this page open.",
+  "pay.success": "Payment received. Thank you! Your balance is now {balance}.",
+  "pay.slow": "Your payment is taking longer than usual. Do not pay again. We will text you when it is done.",
+  "pay.error": "We could not start the payment. Please try again.",
+  "pay.badAmount": "Please enter an amount of at least ₦100.",
+  "pay.cancel": "Close",
+
+  "history.title": "Payment history",
+  "history.empty": "No payments yet.",
+  "history.processing": "Processing",
+  "history.settled": "Received",
+  "history.receipt": "Download receipt",
+  "history.receiptError": "We could not get that receipt. Please try again.",
+  "history.refundNote": "Part of this payment was more than you owed. Your lessor will return it to you.",
+
+  "terms.title": "Your lease terms",
+  "terms.price": "Price of the vehicle: {amount}",
+  "terms.deposit": "Deposit paid at the start: {amount}",
+  "terms.installment": "You pay {amount} every {interval}.",
+  "terms.grace":
+    "If you miss a payment, you have {days} days to catch up. During this time nothing happens to your vehicle.",
+  "terms.missed":
+    "If you are still behind after those days, your vehicle may be locked, but only when it is safely stopped. It unlocks right away when you pay what you owe.",
+  "terms.repossession":
+    "If you stay behind for {days} more days after that, your lessor may take the vehicle back.",
+  "terms.ownership": "When you have paid the full price, the vehicle becomes yours automatically.",
+  "terms.prepay": "You can pay extra at any time. Extra payments move your next due date further away.",
+  "interval.day": "day",
+  "interval.week": "week",
+  "interval.period": "payment period",
+
+  "receipt.title": "Mallaka payment receipt",
+  "receipt.number": "Receipt number",
+  "receipt.date": "Date",
+  "receipt.amount": "Amount paid",
+  "receipt.applied": "Applied to your lease",
+  "receipt.excess": "To be returned to you",
+  "receipt.method": "Paid with",
+  "receipt.balance": "Balance remaining",
+  "receipt.progress": "Progress to ownership",
+  "receipt.vehicle": "Vehicle",
+  "receipt.lessor": "Lessor",
+
+  "common.retry": "Try again",
+  "common.error": "Something went wrong. Please try again.",
+} as const;
+
+export type Strings = { [K in keyof typeof en]: string };
