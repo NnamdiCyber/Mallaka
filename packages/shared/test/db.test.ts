@@ -25,6 +25,7 @@ describe("database schema and migrations", () => {
     });
     memDb.public.registerFunction({
       name: "gen_random_uuid",
+      impure: true,
       implementation: () => crypto.randomUUID(),
     });
 
@@ -34,6 +35,9 @@ describe("database schema and migrations", () => {
     // pg-mem supports standard DDL; plpgsql procedural trigger definitions are mocked via table hooks
     const ddl = rawSql.split("-- Enforce append-only")[0];
     memDb.public.none(ddl);
+    memDb.public.none(
+      fs.readFileSync(path.resolve(__dirname, "../src/db/migrations/002_service_support.sql"), "utf-8")
+    );
 
     // Mock the append-only trigger enforcement in pg-mem
     const auditTable = memDb.public.getTable("audit_log");

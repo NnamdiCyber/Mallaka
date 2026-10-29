@@ -1,6 +1,6 @@
 import pg from "pg";
 import { loadConfig } from "../config.js";
-import { encryptContactInfo } from "../crypto.js";
+import { encryptContactInfo, phoneHash } from "../crypto.js";
 
 const { Pool } = pg;
 
@@ -28,16 +28,33 @@ export async function runSeed(client: pg.PoolClient | pg.ClientBase, jwtSecret =
   const encryptedContact = encryptContactInfo(contactData, jwtSecret);
 
   const riderRes = await client.query<{ id: string }>(`
-    INSERT INTO users (role, lessor_id, public_key, contact_info_encrypted)
+    INSERT INTO users (role, lessor_id, public_key, contact_info_encrypted, phone_hash)
     VALUES (
       'rider',
       $1,
       'GBRIDERTROOPERMALLAKAFAKEPUBLICKEYDEMO0000000000000000002',
-      $2
+      $2,
+      $3
     )
     RETURNING id;
-  `, [lessorId, encryptedContact]);
+  `, [lessorId, encryptedContact, phoneHash(contactData.phone, jwtSecret)]);
   const riderId = riderRes.rows[0].id;
+
+  // 2b. Dev-only staff and admin users so every role can log in with a console OTP.
+  for (const staff of [
+    { role: "lessor_staff", phone: "+2348000000001", lessor: lessorId },
+    { role: "admin", phone: "+2348000000002", lessor: null },
+  ]) {
+    await client.query(
+      `INSERT INTO users (role, lessor_id, contact_info_encrypted, phone_hash) VALUES ($1, $2, $3, $4);`,
+      [
+        staff.role,
+        staff.lessor,
+        encryptContactInfo({ phone: staff.phone }, jwtSecret),
+        phoneHash(staff.phone, jwtSecret),
+      ]
+    );
+  }
 
   // 3. Seed Asset
   const assetHash = "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90";

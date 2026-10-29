@@ -113,6 +113,9 @@ importers:
       '@stellar/stellar-sdk':
         specifier: ^17.4.0
         version: 17.4.0
+      bullmq:
+        specifier: ^6.5.0
+        version: 6.5.0(ioredis@6.0.0)(pg@8.23.1)
       pg:
         specifier: ^8.23.1
         version: 8.23.1
@@ -280,19 +283,40 @@ importers:
 
   services/payments:
     dependencies:
+      '@mallaka/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@stellar/stellar-sdk':
-        specifier: ^12.0.0
-        version: 12.3.0
+        specifier: ^17.4.0
+        version: 17.4.0
+      bullmq:
+        specifier: ^6.5.0
+        version: 6.5.0(ioredis@6.0.0)(pg@8.23.1)
+      fastify:
+        specifier: ^4.26.0
+        version: 4.29.1
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
     devDependencies:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.43
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
       eslint:
         specifier: ^8.57.0
         version: 8.57.1
+      pg-mem:
+        specifier: ^3.0.14
+        version: 3.0.14
       prettier:
         specifier: ^3.2.0
         version: 3.9.10
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
       typescript:
         specifier: ^5.3.0
         version: 5.9.3

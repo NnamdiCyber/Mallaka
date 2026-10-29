@@ -33,6 +33,15 @@ export const ConfigSchema = z.object({
     .transform((val) => (val !== undefined && val !== "" ? parseInt(val, 10) : 60))
     .pipe(z.number().positive()),
   JWT_SECRET: z.string().optional(),
+  /**
+   * ADDITIVE to README 16 (see ADR-012): manual locks on leases whose remaining
+   * balance (token base units) exceeds this need a second approver. Default 0 = always.
+   */
+  MANUAL_LOCK_APPROVAL_THRESHOLD: z
+    .string()
+    .optional()
+    .transform((val) => (val !== undefined && val !== "" ? val : undefined))
+    .pipe(z.string().regex(/^\d+$/, "must be a non-negative integer").optional()),
   SENTRY_DSN: z.string().optional(),
 });
 

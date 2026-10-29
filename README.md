@@ -810,6 +810,7 @@ Copy `.env.example` to `.env` and fill in the values.
 | `MQTT_URL` | lock-bridge | Optional MQTT broker |
 | `KEEPER_INTERVAL_SECONDS` | keeper | How often to scan leases |
 | `JWT_SECRET` | api | Session signing |
+| `MANUAL_LOCK_APPROVAL_THRESHOLD` | api | **Added (ADR-012).** Remaining balance (token base units) above which a manual lock needs a second approver. Default `0`. |
 | `SENTRY_DSN` | all | Error reporting |
 
 > **Never commit real secrets.** Production keys belong in KMS or Vault, not in environment files.

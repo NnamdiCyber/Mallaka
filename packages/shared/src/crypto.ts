@@ -54,3 +54,13 @@ export function decryptContactInfo<T = unknown>(encryptedStr: string, secret: st
   const decrypted = Buffer.concat([decipher.update(encryptedData), decipher.final()]);
   return JSON.parse(decrypted.toString("utf8")) as T;
 }
+
+/**
+ * Keyed, deterministic hash of a phone number. Used to look a user up at OTP
+ * login without storing the number in plaintext (contact_info_encrypted is
+ * randomised and cannot be queried). Numbers are normalised to digits only.
+ */
+export function phoneHash(phone: string, secret: string): string {
+  const normalised = phone.replace(/\D/g, "");
+  return crypto.createHmac("sha256", deriveKey(secret)).update(normalised, "utf8").digest("hex");
+}

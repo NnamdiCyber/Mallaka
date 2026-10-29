@@ -11,6 +11,9 @@
 | 007 | Minimal title registry | Accepted (sprint default) | 5, 6, 7.1 |
 | 008 | Custodial payer authorization for MVP | Accepted (sprint default) | 7.7, 12 |
 | 009 | Escrow custodian transfer and release in title registry | Accepted (sprint default) | 6, 7.1, 7.3 |
+| 010 | Service-support schema additions and dev signer | Accepted (sprint default) | 9, 12, 16 |
+| 011 | Payments pipeline states, retry safety and overpayment | Accepted (sprint default) | 8.3, 9, 12, 19, 22 |
+| 012 | Two-person approval threshold for manual locks | Accepted (sprint default) | 16, 19 |
 
 ## Template
 

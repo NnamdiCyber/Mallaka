@@ -2,17 +2,32 @@
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "build/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**",
+        ".next/**",
+        "build/**"
+      ]
     },
     "lint": {
-      "outputs": []
+      "outputs": [],
+      "dependsOn": [
+        "^build"
+      ]
     },
     "typecheck": {
-      "outputs": []
+      "outputs": [],
+      "dependsOn": [
+        "^build"
+      ]
     },
     "test": {
-      "outputs": []
+      "outputs": [],
+      "dependsOn": [
+        "^build"
+      ]
     },
     "dev": {
       "cache": false,
@@ -25,5 +40,10 @@
       "outputs": []
     }
   },
-  "globalEnv": ["STELLAR_NETWORK", "SOROBAN_RPC_URL", "DATABASE_URL", "REDIS_URL"]
+  "globalEnv": [
+    "STELLAR_NETWORK",
+    "SOROBAN_RPC_URL",
+    "DATABASE_URL",
+    "REDIS_URL"
+  ]
 }

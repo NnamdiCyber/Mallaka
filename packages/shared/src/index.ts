@@ -7,3 +7,7 @@ export * from "./chain/signer.js";
 export * from "./chain/chain-client.js";
 export { runMigrations } from "./db/migrate.js";
 export { runSeed } from "./db/seed.js";
+export * from "./chain/lease-chain.js";
+export * from "./chain/soroban-lease-chain.js";
+export type { Queryable } from "./db/queryable.js";
+export * from "./money.js";
