@@ -32,3 +32,18 @@ The lock bridge must:
 > The IoT device never holds a wallet or private key. It only receives authenticated commands from the bridge.
 
 See [README section 11](README.md#11-lock-and-immobilizer-integration) for the complete lock safety specification.
+
+## Implementation status (services/lock-bridge)
+
+Each rule below is enforced in `services/lock-bridge/src/bridge.ts` and covered by `services/lock-bridge/test/bridge.test.ts`.
+
+- [x] Re-read chain state before every command (a lock is refused unless the chain says `Defaulted`).
+- [x] Never immobilize a moving vehicle: lock only when the device reports stationary and engine off, otherwise deferred and retried.
+- [x] Notify first: a Grace-entry notice and a pre-lock notice (plus a waiting period, default 24h) must be recorded in `rider_notices`.
+- [x] Release instantly: unlock on `cured`/`completed` is sent immediately and retried until acknowledged.
+- [x] Fail open: if the chain cannot be read, no lock is issued and the command stays queued.
+- [x] Every command is recorded in `lock_commands` with trigger, timestamp and result.
+- [ ] Local law applies: operator responsibility, see README section 20.
+
+Drivers: `ManualDriver` (Phase 1), `MockDevice` (tests/E2E), `VendorHttpDriver` and `MqttDriver` (skeletons, **untested against real hardware**).
+Notes: an unlock whose chain read fails still proceeds (release is the safe direction) and records `chainConfirmed: false`. `repossessed` jobs cancel pending locks and send no device command.
