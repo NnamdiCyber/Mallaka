@@ -9,13 +9,14 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "e2e": "node --import tsx scripts/e2e-testnet.ts",
+    "e2e": "tsx scripts/e2e-testnet.ts",
     "dev": "turbo run dev",
     "db:migrate": "turbo run db:migrate",
     "db:seed": "turbo run db:seed",
     "format": "prettier --write ."
   },
   "devDependencies": {
+    "tsx": "^4.19.0",
     "turbo": "^2.0.0",
     "prettier": "^3.2.0",
     "eslint": "^8.57.0",

@@ -19,23 +19,37 @@ export function parseSorobanEvent(
   rawEvent: rpc.Api.GetEventsResponse["events"][0],
   eventIndex: number
 ): ParsedEvent {
-  const topics: unknown[] = (rawEvent.topic || []).map((t: string | xdr.ScVal) => {
+  const topics: unknown[] = (rawEvent.topic || []).map((t: string | xdr.ScVal | any) => {
     try {
-      const scVal = typeof t === "string" ? xdr.ScVal.fromXDR(t, "base64") : t;
+      let scVal: xdr.ScVal;
+      if (typeof t === "string") {
+        scVal = xdr.ScVal.fromXDR(t, "base64");
+      } else if (t && typeof t.toXDR === "function") {
+        scVal = xdr.ScVal.fromXDR(t.toXDR("base64"), "base64");
+      } else {
+        scVal = t;
+      }
       return scValToNative(scVal);
     } catch {
-      return t;
+      return typeof t?.toString === "function" ? t.toString() : t;
     }
   });
 
   let data: unknown = null;
   try {
-    const dataVal = typeof rawEvent.value === "string"
-      ? xdr.ScVal.fromXDR(rawEvent.value, "base64")
-      : (rawEvent.value as any)?.xdr
-        ? xdr.ScVal.fromXDR((rawEvent.value as any).xdr, "base64")
-        : rawEvent.value;
-    data = scValToNative(dataVal as xdr.ScVal);
+    let dataVal: xdr.ScVal | undefined;
+    if (typeof rawEvent.value === "string") {
+      dataVal = xdr.ScVal.fromXDR(rawEvent.value, "base64");
+    } else if (rawEvent.value && typeof (rawEvent.value as any).toXDR === "function") {
+      dataVal = xdr.ScVal.fromXDR((rawEvent.value as any).toXDR("base64"), "base64");
+    } else if ((rawEvent.value as any)?.xdr) {
+      dataVal = xdr.ScVal.fromXDR((rawEvent.value as any).xdr, "base64");
+    } else {
+      dataVal = rawEvent.value as any;
+    }
+    if (dataVal) {
+      data = scValToNative(dataVal);
+    }
   } catch {
     data = rawEvent.value;
   }

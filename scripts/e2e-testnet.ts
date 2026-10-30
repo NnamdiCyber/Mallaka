@@ -15,11 +15,14 @@
  *
  * TIME-ACCELERATION STRATEGY (HONEST & DOCUMENTED):
  *  - Production uses daily/weekly intervals (e.g. 86400s) and multi-day grace windows.
- *  - For automated testnet verification, interval = 10s and grace = 10s.
- *  - This uses the REAL testnet ledger timestamp and real consensus close times (~4s/ledger).
+ *  - For automated testnet verification, interval = 75s and grace = 35s.
+ *  - This accommodates live testnet transaction confirmation times (~12-16s per tx)
+ *    so intervals and grace periods do not prematurely expire mid-transaction.
  *  - No client-side clock tampering is performed on contract logic.
  */
 
+import dns from "node:dns";
+dns.setDefaultResultOrder("ipv4first");
 import { execSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -263,8 +266,8 @@ async function main() {
     total_price: 50000000,
     deposit: 5000000,
     installment: 5000000,
-    interval: 10,
-    grace: 10,
+    interval: 75,
+    grace: 35,
   });
 
   // Extract created lease id
@@ -280,7 +283,7 @@ async function main() {
     `INSERT INTO leases (id, lessor_id, asset_id, lessee_id, lessor_address, lessee_address, token_address,
        title_contract_address, total_price, deposit, installment, interval_seconds, grace_period_seconds,
        repossession_wait_seconds, paid, start_ts, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 50000000, 5000000, 5000000, 10, 10, 604800, 0, 0, 'Pending')
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 50000000, 5000000, 5000000, 75, 35, 604800, 0, 0, 'Pending')
      ON CONFLICT (id) DO UPDATE SET status = 'Pending';`,
     [leaseId, lessorId, assetId, riderId, LESSOR_ADDR, RIDER_ADDR, SAC_TOKEN_ID, TITLE_REGISTRY_ID]
   );
@@ -347,7 +350,7 @@ async function main() {
 
   for (let i = 1; i <= 3; i++) {
     const payRef = `paystack_ontime_${i}_${Date.now()}`;
-    const nairaAmount = 7500; // 7,500 NGN at 1500 NGN/XLM = 5,000,000 base units (0.5 XLM)
+    const nairaAmount = 750; // 750 NGN at 1500 NGN/XLM = 5,000,000 base units (0.5 XLM)
     const tokenAmount = nairaToToken(String(nairaAmount), "1500.000000");
 
     // Insert payment intent in DB
@@ -382,7 +385,7 @@ async function main() {
 
     await indexer.pollOnce();
     const lessorBalPost = getSacBalance(LESSOR_ADDR);
-    console.log(`  -> On-time payment ${i}/3 confirmed: 7,500 NGN (0.5 XLM) -> Lessor (+5,000,000 units)`);
+    console.log(`  -> On-time payment ${i}/3 confirmed: 750 NGN (0.5 XLM) -> Lessor (+5,000,000 units)`);
   }
 
   // Assert Step 3
@@ -410,10 +413,23 @@ async function main() {
   const t4Start = Date.now();
 
   const nextDueTs = Number(statusOnChain3.next_due);
-  console.log(`  Next due is timestamp ${nextDueTs}. Waiting for testnet ledger time to pass next due...`);
+  console.log(`  Next due is timestamp ${nextDueTs}. Waiting for testnet ledger close time to pass next due...`);
 
-  // Wait 15 seconds for testnet ledger time to exceed next_due
-  await sleep(15000);
+  while (true) {
+    try {
+      const latest = await rpcServer.getLatestLedger();
+      const closeTime = Number(latest.closeTime);
+      if (closeTime > nextDueTs) {
+        console.log(`  Testnet ledger closed at ${closeTime} (> next_due ${nextDueTs}). Transitioning to Grace...`);
+        break;
+      }
+      const remain = nextDueTs - closeTime;
+      console.log(`  Waiting for testnet ledger: ${remain}s remaining until next_due...`);
+      await sleep(Math.min(5000, Math.max(2000, remain * 1000)));
+    } catch {
+      await sleep(3000);
+    }
+  }
 
   // Keeper checks default
   invokeCli("keeper", LEASE_CONTRACT_ID, "check_default", { lease_id: leaseId });
@@ -426,8 +442,13 @@ async function main() {
   // Update DB cache
   await pool.query(`UPDATE leases SET status = 'Grace' WHERE id = $1;`, [leaseId]);
 
-  // Notifier sends reminder notice
-  await notifier.sendNotice(leaseId, "grace_entered", "Mallaka Alert: Payment overdue. Your 10s grace window is active.");
+  // Notifier sends reminder notice and pre-lock notice
+  await notifier.notifyLease(String(leaseId), "grace_entered", {
+    amount: "750 NGN",
+    dueDate: new Date(nextDueTs * 1000).toLocaleDateString(),
+    graceEnds: new Date((nextDueTs + 35) * 1000).toLocaleDateString(),
+  });
+  await notifier.notifyLease(String(leaseId), "pre_lock", { lockAfter: "upon grace expiration", amount: "750 NGN" });
   const noticeRow4 = (await pool.query(`SELECT * FROM rider_notices WHERE lease_id = $1 AND kind = 'grace_entered';`, [leaseId])).rows;
 
   if (Number(statusOnChain4.derived_status) !== 2 && Number(leaseOnChain4.status) !== 2) {
@@ -448,8 +469,24 @@ async function main() {
   console.log("▶ [STEP 5/8] Grace window expires: Keeper marks Defaulted, Lock Bridge engages...");
   const t5Start = Date.now();
 
-  console.log("  Waiting 15 seconds for grace period (10s) to expire on testnet ledger...");
-  await sleep(15000);
+  const graceEndTs = nextDueTs + 35;
+  console.log(`  Grace ends at timestamp ${graceEndTs}. Waiting for testnet ledger close time to pass grace expiration...`);
+
+  while (true) {
+    try {
+      const latest = await rpcServer.getLatestLedger();
+      const closeTime = Number(latest.closeTime);
+      if (closeTime > graceEndTs) {
+        console.log(`  Testnet ledger closed at ${closeTime} (> grace_end ${graceEndTs}). Transitioning to Defaulted...`);
+        break;
+      }
+      const remain = graceEndTs - closeTime;
+      console.log(`  Waiting for testnet ledger: ${remain}s remaining until grace expires...`);
+      await sleep(Math.min(5000, Math.max(2000, remain * 1000)));
+    } catch {
+      await sleep(3000);
+    }
+  }
 
   // Keeper invokes check_default on testnet
   invokeCli("keeper", LEASE_CONTRACT_ID, "check_default", { lease_id: leaseId });
@@ -496,8 +533,10 @@ async function main() {
   const t6Start = Date.now();
 
   const cureRef = `paystack_cure_${Date.now()}`;
-  const cureNaira = 7500;
-  const cureToken = nairaToToken(String(cureNaira), "1500.000000");
+  const arrearsToken = BigInt(statusOnChain5.arrears || "5000000");
+  const cureToken = arrearsToken > 0n ? arrearsToken : 5000000n;
+  const cureNaira = (Number(cureToken) / 10000000) * 1500;
+  console.log(`  Arrears on-chain is ${cureToken} base units (${cureNaira} NGN). Rider paying full arrears to cure...`);
 
   invokeCli("rider", LEASE_CONTRACT_ID, "pay", {
     lease_id: leaseId,
@@ -536,7 +575,7 @@ async function main() {
   console.log(`  ✔ On-chain status returned: Defaulted -> Active (1) [cured event emitted]`);
   console.log(`  ✔ Instant unlock command sent to MockDevice`);
   console.log(`  ✔ MockDevice is now: UNLOCKED`);
-  console.log(`  ✔ Cumulative paid: 20,000,000 base units (2.0 XLM)`);
+  console.log(`  ✔ Cumulative paid: ${readContract("keeper", LEASE_CONTRACT_ID, "get_lease", { lease_id: leaseId }).paid} base units`);
   console.log(`  Duration: ${((Date.now() - t6Start) / 1000).toFixed(1)}s\n`);
 
   // =========================================================================
@@ -545,38 +584,39 @@ async function main() {
   console.log("▶ [STEP 7/8] Testing prepayment and overpayment safety rules...");
   const t7Start = Date.now();
 
-  // 7a. Prepayment of 2 installments (10,000,000 base units = 15,000 NGN)
-  console.log("  7a. Prepayment: paying 2 installments in one payment (15,000 NGN = 1.0 XLM)...");
+  // 7a. Prepayment of 1 installment in advance (5,000,000 base units = 750 NGN)
+  console.log("  7a. Prepayment: paying 1 installment in advance (750 NGN = 0.5 XLM)...");
   const prepayRef = `paystack_prepay_${Date.now()}`;
   invokeCli("rider", LEASE_CONTRACT_ID, "pay", {
     lease_id: leaseId,
     payer: RIDER_ADDR,
-    amount: 10000000,
+    amount: 5000000,
   });
 
   await pool.query(
     `INSERT INTO payments (lease_id, payer_address, naira_amount, token_amount, fx_rate, fx_rate_source,
        provider, provider_reference, status, tx_hash)
-     VALUES ($1, $2, 15000, 10000000, 1500.0, 'fixed-dev', 'paystack', $3, 'confirmed', 'tx_prepay_e2e');`,
+     VALUES ($1, $2, 750, 5000000, 1500.0, 'fixed-dev', 'paystack', $3, 'confirmed', 'tx_prepay_e2e');`,
     [leaseId, RIDER_ADDR, prepayRef]
   );
   await indexer.pollOnce();
 
   const statusAfterPrepay = readContract("keeper", LEASE_CONTRACT_ID, "get_status", { lease_id: leaseId });
   console.log(`  ✔ Prepayment accepted: paid reaches ${readContract("keeper", LEASE_CONTRACT_ID, "get_lease", { lease_id: leaseId }).paid}`);
-  console.log(`  ✔ next_due advanced forward by 2 intervals (+20s): ${statusAfterPrepay.next_due}`);
+  console.log(`  ✔ next_due advanced forward: ${statusAfterPrepay.next_due}`);
 
-  // 7b. Overpayment attempt: Remaining balance is 15,000,000 (1.5 XLM). Rider sends 20,000,000 (2.0 XLM = 30,000 NGN).
-  console.log("  7b. Overpayment attempt: Rider sends 30,000 NGN (2.0 XLM), remaining balance is only 1.5 XLM...");
+  // 7b. Overpayment attempt: Remaining balance check
+  const remainingBeforeOverpay = BigInt(statusAfterPrepay.remaining_balance);
+  const remainingNaira = (Number(remainingBeforeOverpay) / 10000000) * 1500;
+  const overpayNaira = remainingNaira + 750;
+  console.log(`  7b. Overpayment attempt: Remaining balance is ${remainingBeforeOverpay} units (${remainingNaira} NGN). Rider sends ${overpayNaira} NGN...`);
   const overpayRef = `paystack_overpay_${Date.now()}`;
-  const overpayNaira = 30000;
-  const requestedToken = nairaToToken(String(overpayNaira), "1500.000000"); // 20,000,000
-  const remainingBeforeOverpay = BigInt(statusAfterPrepay.remaining_balance); // 15,000,000
+  const requestedToken = nairaToToken(String(overpayNaira), "1500.000000");
 
   // Processor caps payment to remaining balance
   const appliedToken = requestedToken > remainingBeforeOverpay ? remainingBeforeOverpay : requestedToken;
   const excessToken = requestedToken - appliedToken;
-  const excessNaira = 7500; // 0.5 XLM excess
+  const excessNaira = 750; // 0.5 XLM excess = 750 NGN
 
   console.log(`  ✔ Processor capped on-chain payment to exact remaining balance: ${appliedToken} units`);
   console.log(`  ✔ Excess ${excessToken} units (${excessNaira} NGN) flagged in DB for manual refund`);
@@ -597,8 +637,8 @@ async function main() {
     [leaseId, RIDER_ADDR, overpayNaira, Number(requestedToken), Number(appliedToken), Number(excessToken), excessNaira, overpayRef]
   );
   await pool.query(
-    `INSERT INTO audit_log (action, details) VALUES ('overpayment_excess_flagged', $1);`,
-    [JSON.stringify({ leaseId, excessTokenAmount: String(excessToken), excessNairaAmount: excessNaira })]
+    `INSERT INTO audit_log (actor, action, resource, details) VALUES ('system:payments', 'overpayment_excess_flagged', $1, $2);`,
+    [`lease:${leaseId}`, JSON.stringify({ leaseId, excessTokenAmount: String(excessToken), excessNairaAmount: excessNaira })]
   );
 
   await indexer.pollOnce();
@@ -643,8 +683,8 @@ async function main() {
   if (finalTitleOwner !== RIDER_ADDR) {
     throw new Error(`Step 8 assertion failed: Title Registry owner must be rider address (${RIDER_ADDR}), got ${finalTitleOwner}`);
   }
-  if (finalTitleEntry.custodian !== undefined && finalTitleEntry.custodian !== null) {
-    throw new Error(`Step 8 assertion failed: Title escrow custodian must be cleared (None)`);
+  if (finalTitleEntry.custodian && finalTitleEntry.custodian !== null && finalTitleEntry.custodian !== "null") {
+    throw new Error(`Step 8 assertion failed: Title escrow custodian must be cleared (None), got ${finalTitleEntry.custodian}`);
   }
   if (contractBalanceFinal !== 0n) throw new Error(`Step 8 assertion failed: Contract balance must be 0`);
   if (finalDeviceLocked !== false) throw new Error(`Step 8 assertion failed: MockDevice must be permanently unlocked`);

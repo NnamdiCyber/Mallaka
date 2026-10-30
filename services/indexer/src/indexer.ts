@@ -17,9 +17,14 @@ export interface IndexerOptions {
 }
 
 function safeJsonStringify(obj: unknown): string {
-  return JSON.stringify(obj, (_key, value) =>
-    typeof value === "bigint" ? value.toString() : value
-  );
+  if (obj === undefined || obj === null) {
+    return "{}";
+  }
+  return JSON.stringify(obj, (_key, value) => {
+    if (typeof value === "bigint") return value.toString();
+    if (value instanceof Uint8Array) return Buffer.from(value).toString("hex");
+    return value;
+  });
 }
 
 export class IndexerService {
@@ -219,7 +224,16 @@ export class IndexerService {
     let currentStart = startLedger;
     if (currentStart === undefined) {
       const storedCursor = await this.getStoredCursor();
-      currentStart = storedCursor !== null ? storedCursor + 1 : 1;
+      if (storedCursor !== null) {
+        currentStart = storedCursor + 1;
+      } else {
+        try {
+          const latest = await this.rpcServer.getLatestLedger();
+          currentStart = Math.max(1, latest.sequence - 10);
+        } catch {
+          currentStart = 1;
+        }
+      }
     }
 
     this.logger.debug("Polling Soroban RPC events", { startLedger: currentStart });
@@ -230,7 +244,14 @@ export class IndexerService {
         filters: [{ type: "contract", contractIds: this.contractIds }],
       });
     } catch (err) {
-      this.logger.warn("Error fetching events from Soroban RPC", { error: (err as Error).message });
+      const msg = (err as Error).message;
+      const match = msg.match(/ledger range:\s*(\d+)\s*-\s*(\d+)/);
+      if (match) {
+        const minLedger = parseInt(match[1], 10);
+        this.logger.info("Adjusting startLedger to minimum available ledger range", { minLedger });
+        return this.pollOnce(minLedger);
+      }
+      this.logger.warn("Error fetching events from Soroban RPC", { error: msg });
       return currentStart;
     }
 
