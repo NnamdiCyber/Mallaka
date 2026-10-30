@@ -65,6 +65,12 @@ jobs:
         run: cargo test
         working-directory: contracts
 
+      - name: Install Stellar CLI
+        run: |
+          curl -sSL -o /tmp/stellar.deb https://github.com/stellar/stellar-cli/releases/download/v28.0.0/stellar-cli_28.0.0_amd64.deb
+          sudo dpkg -i /tmp/stellar.deb
+          rm /tmp/stellar.deb
+
       - name: stellar contract build
         run: stellar contract build
         working-directory: contracts
