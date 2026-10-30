@@ -11,7 +11,7 @@
     "dev": "tsx src/index.ts",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit",
-    "test": "bash -c 'node --import tsx --test test/**/*.test.ts'"
+    "test": "bash -c 'shopt -s globstar; node --import tsx --test test/**/*.test.ts'"
   },
   "dependencies": {
     "@mallaka/shared": "workspace:*",
