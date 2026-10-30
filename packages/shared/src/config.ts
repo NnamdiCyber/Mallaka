@@ -43,6 +43,17 @@ export const ConfigSchema = z.object({
     .transform((val) => (val !== undefined && val !== "" ? val : undefined))
     .pipe(z.string().regex(/^\d+$/, "must be a non-negative integer").optional()),
   SENTRY_DSN: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.STELLAR_NETWORK === "mainnet") {
+    if (!data.KMS_KEY_ID || data.KMS_KEY_ID.trim() === "") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["KMS_KEY_ID"],
+        message:
+          "KMS_KEY_ID is strictly required when STELLAR_NETWORK is 'mainnet'. Local secret keys and DevSigner are forbidden on mainnet.",
+      });
+    }
+  }
 });
 
 export type AppConfig = z.infer<typeof ConfigSchema>;

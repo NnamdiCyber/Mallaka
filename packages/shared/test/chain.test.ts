@@ -198,3 +198,76 @@ describe("ChainClient discipline and resilience", () => {
     assert.strictEqual(pollCount, 3);
   });
 });
+
+describe("absence of PII in any chain call", () => {
+  const testPubKey = Keypair.random().publicKey();
+
+  it("verifies contract call arguments contain strictly opaque IDs, hashes, and amounts, with zero PII", async () => {
+    const { SorobanLeaseChain } = await import("../src/chain/soroban-lease-chain.js");
+    const chain = new SorobanLeaseChain({
+      rpcUrl: "http://localhost:8000",
+      networkPassphrase: Networks.TESTNET,
+      leaseContractId: "CDNKLGLDN64SFB3WIOVAMA7Q4LILLO2H27HWIXFTXTXTK7UO5ERF5TJE",
+      keys: {
+        signerFor: async () => ({
+          getPublicKey: async () => testPubKey,
+          signTransaction: async (tx: any) => tx,
+        }),
+      },
+      submitter: { submit: async () => ({ txHash: "h1" }) },
+    });
+
+    let builtTx: Transaction | null = null;
+    (chain as any).server.getAccount = async () => new Account(testPubKey, "1");
+    (chain as any).server.simulateTransaction = async (tx: Transaction) => {
+      builtTx = tx;
+      return {
+        results: [{ auth: [], xdr: "" }],
+        minResourceFee: "100",
+        latestLedger: 12345,
+      };
+    };
+
+    const dummyAssetHash = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+    const lessorKey = Keypair.random().publicKey();
+    const riderKey = Keypair.random().publicKey();
+
+    await chain.prepare({
+      kind: "create_lease",
+      lessor: lessorKey,
+      lessee: riderKey,
+      assetIdHex: dummyAssetHash,
+      titleContract: "CA52GFT2QVCTE7JS4KVMB2RK2SDSXJEG5D3DM24R3CA2VLWMWWM3I5VV",
+      token: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+      totalPrice: "50000000",
+      deposit: "5000000",
+      installment: "5000000",
+      intervalSeconds: 86400,
+      graceSeconds: 86400,
+    });
+
+    assert.ok(builtTx);
+    const xdrString = (builtTx as Transaction).toXDR();
+    const piiSamples = [
+      "+2348012345678",
+      "08012345678",
+      "Musa Ibrahim",
+      "rider@example.com",
+      "Lagos Nigeria",
+    ];
+    for (const pii of piiSamples) {
+      assert.strictEqual(xdrString.includes(pii), false, `Chain call must not contain PII: ${pii}`);
+    }
+
+    await chain.prepare({
+      kind: "pay",
+      leaseId: "1",
+      payer: riderKey,
+      amount: "5000000",
+    });
+    const payXdr = (builtTx as Transaction).toXDR();
+    for (const pii of piiSamples) {
+      assert.strictEqual(payXdr.includes(pii), false, `Chain pay call must not contain PII: ${pii}`);
+    }
+  });
+});

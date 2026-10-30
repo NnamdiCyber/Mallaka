@@ -85,6 +85,41 @@ describe("role checks and privacy", () => {
     assert.ok(!JSON.stringify(staff).includes(RIDER_PHONE));
     assert.strictEqual(staff.asset.deviceId, "DEV-1");
   });
+
+  it("strictly validates JWTs: rejects expired tokens, wrong signatures, and malformed strings", async () => {
+    const s = await setup();
+    await s.addLease(1, "Active");
+
+    // 1. Expired token (exp in the past)
+    const expiredToken = s.app.jwt.sign(
+      { id: s.riderId, role: "rider", exp: Math.floor(Date.now() / 1000) - 60 }
+    );
+    const expiredRes = await s.app.inject({
+      method: "GET",
+      url: "/v1/leases",
+      headers: s.auth(expiredToken),
+    });
+    assert.strictEqual(expiredRes.statusCode, 401);
+
+    // 2. Token signed with wrong signature / tampered payload
+    const parts = s.riderToken.split(".");
+    const tamperedPayload = Buffer.from(JSON.stringify({ id: s.riderId, role: "admin" })).toString("base64url");
+    const tamperedToken = `${parts[0]}.${tamperedPayload}.${parts[2]}`;
+    const tamperedRes = await s.app.inject({
+      method: "GET",
+      url: "/v1/leases",
+      headers: s.auth(tamperedToken),
+    });
+    assert.strictEqual(tamperedRes.statusCode, 401);
+
+    // 3. Malformed token structure
+    const malformedRes = await s.app.inject({
+      method: "GET",
+      url: "/v1/leases",
+      headers: { authorization: "Bearer not-a-valid-token-structure" },
+    });
+    assert.strictEqual(malformedRes.statusCode, 401);
+  });
 });
 
 describe("validation and errors", () => {

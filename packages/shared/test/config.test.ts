@@ -71,4 +71,30 @@ describe("loadConfig", () => {
       }
     );
   });
+
+  it("strictly requires KMS_KEY_ID when STELLAR_NETWORK is mainnet", () => {
+    assert.throws(
+      () =>
+        loadConfig({
+          ...validBaseEnv,
+          STELLAR_NETWORK: "mainnet",
+        }),
+      (err: Error) => {
+        assert(err.message.includes("KMS_KEY_ID"));
+        assert(err.message.includes("forbidden on mainnet"));
+        return true;
+      }
+    );
+
+    const validMainnet = loadConfig({
+      ...validBaseEnv,
+      STELLAR_NETWORK: "mainnet",
+      KMS_KEY_ID: "projects/mallaka-prod/locations/global/keyRings/mallaka/cryptoKeys/sponsor",
+    });
+    assert.strictEqual(validMainnet.STELLAR_NETWORK, "mainnet");
+    assert.strictEqual(
+      validMainnet.KMS_KEY_ID,
+      "projects/mallaka-prod/locations/global/keyRings/mallaka/cryptoKeys/sponsor"
+    );
+  });
 });

@@ -1,0 +1,8 @@
+[advisories]
+ignore = [
+    # RUSTSEC-2026-0387: crypto-bigint 0.5.5 timing variability. Upstream dependency of soroban-env-host 21.2.1.
+    # Contracts execute in Soroban WASM sandbox where host environment manages execution; not upgradeable independently of soroban-sdk.
+    "RUSTSEC-2026-0387",
+    # RUSTSEC-2024-0436: paste crate is unmaintained. Transitive macro dependency in SDK.
+    "RUSTSEC-2024-0436",
+]
