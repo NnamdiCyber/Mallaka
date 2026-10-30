@@ -39,3 +39,21 @@ export async function startIndexerService() {
   logger.info("Starting indexer service loop");
   return { indexer, pool, lockBridgeQueue, notificationQueue };
 }
+
+if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
+  startIndexerService()
+    .then(({ indexer }) => {
+      setInterval(() => {
+        indexer.pollOnce().catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error("Indexer poll error:", err);
+        });
+      }, 5000);
+    })
+    .catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error("Indexer startup error:", err);
+      process.exit(1);
+    });
+}
+

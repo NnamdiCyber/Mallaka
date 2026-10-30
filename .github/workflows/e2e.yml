@@ -1,0 +1,71 @@
+name: E2E Testnet Scenario
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run nightly at 02:00 UTC
+    - cron: "0 2 * * *"
+
+env:
+  CARGO_TERM_COLOR: always
+  STELLAR_NETWORK: testnet
+  SOROBAN_RPC_URL: https://soroban-testnet.stellar.org
+
+jobs:
+  e2e:
+    name: End-to-End Testnet Lease Lifecycle
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Rust setup
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none
+
+      - name: Cache Cargo build
+        uses: actions/cache@v4
+        with:
+          path: contracts/target
+          key: cargo-build-${{ hashFiles('contracts/Cargo.lock') }}
+
+      # Node.js & pnpm setup
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install pnpm
+        run: corepack enable && corepack prepare pnpm@9 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build monorepo packages
+        run: pnpm build
+
+      # Start supporting infrastructure
+      - name: Start Postgres and Redis
+        run: |
+          docker compose -f infra/docker/docker-compose.dev.yml up -d postgres redis
+          docker compose -f infra/docker/docker-compose.dev.yml ps
+
+      # Run database migrations
+      - name: Run DB migrations
+        env:
+          DATABASE_URL: postgresql://mallaka:mallaka@localhost:5432/mallaka
+        run: pnpm db:migrate
+
+      # Execute E2E scenario against Stellar Testnet
+      - name: Run E2E Testnet Scenario
+        env:
+          DATABASE_URL: postgresql://mallaka:mallaka@localhost:5432/mallaka
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: e2e_testnet_super_secret_jwt_key_at_least_32_chars!
+          PAYSTACK_SECRET_KEY: sk_test_e2e_paystack_secret
+          FLUTTERWAVE_SECRET_HASH: flw_test_e2e_hash
+        run: pnpm e2e

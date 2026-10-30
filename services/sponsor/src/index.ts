@@ -74,3 +74,12 @@ export async function startSponsorService() {
 
   return { feeBumpService, balanceMonitor, chainClient };
 }
+
+if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
+  startSponsorService().catch((err) => {
+    // eslint-disable-next-line no-console
+    console.error("Sponsor service error:", err);
+    process.exit(1);
+  });
+}
+

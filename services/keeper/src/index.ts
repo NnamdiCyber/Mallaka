@@ -42,3 +42,25 @@ export async function startKeeperService() {
 
   return { keeper, pool, intervalSeconds };
 }
+
+if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
+  startKeeperService()
+    .then(({ keeper, intervalSeconds }) => {
+      setInterval(() => {
+        keeper.scanAndCheckDefaults().catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error("Keeper scanAndCheckDefaults error:", err);
+        });
+        keeper.scanAndExtendTtls().catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error("Keeper scanAndExtendTtls error:", err);
+        });
+      }, intervalSeconds * 1000);
+    })
+    .catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error("Keeper startup error:", err);
+      process.exit(1);
+    });
+}
+

@@ -6,11 +6,14 @@ import { Worker } from "bullmq";
 import { Networks } from "@stellar/stellar-sdk";
 import { loadConfig, createLogger, SorobanLeaseChain, devKeyResolverFromEnv } from "@mallaka/shared";
 import { Notifier, driverFromConfig } from "@mallaka/notifier";
-import { ManualDriver, VendorHttpDriver, type DeviceAdapter } from "./device.js";
+import { ManualDriver, MockDevice, VendorHttpDriver, type DeviceAdapter } from "./device.js";
 import { LockBridge, type LockJob } from "./bridge.js";
 
-/** Picks the device driver: vendor HTTP if configured, otherwise manual (Phase 1). MQTT is wired by injecting an MqttDriver. */
+/** Picks the device driver: mock if configured, vendor HTTP if configured, otherwise manual (Phase 1). MQTT is wired by injecting an MqttDriver. */
 export function deviceFromConfig(config: { LOCK_VENDOR_API_URL?: string; LOCK_VENDOR_API_KEY?: string }): DeviceAdapter {
+  if (config.LOCK_VENDOR_API_URL === "mock" || process.env.LOCK_DEVICE_DRIVER === "mock") {
+    return new MockDevice();
+  }
   if (config.LOCK_VENDOR_API_URL && config.LOCK_VENDOR_API_KEY) {
     return new VendorHttpDriver({ baseUrl: config.LOCK_VENDOR_API_URL, apiKey: config.LOCK_VENDOR_API_KEY });
   }

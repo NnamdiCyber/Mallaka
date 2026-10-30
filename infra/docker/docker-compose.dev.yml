@@ -27,6 +27,104 @@ services:
       timeout: 5s
       retries: 5
 
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+    command: ["pnpm", "--filter", "@mallaka/api", "dev"]
+    profiles: ["full"]
+    ports:
+      - "3001:3001"
+    env_file:
+      - ../../.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  payments:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+    command: ["pnpm", "--filter", "@mallaka/payments", "dev"]
+    profiles: ["full"]
+    ports:
+      - "3002:3002"
+    env_file:
+      - ../../.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  keeper:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+    command: ["pnpm", "--filter", "@mallaka/keeper", "dev"]
+    profiles: ["full"]
+    env_file:
+      - ../../.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  indexer:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+    command: ["pnpm", "--filter", "@mallaka/indexer", "dev"]
+    profiles: ["full"]
+    env_file:
+      - ../../.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  lock-bridge:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+    command: ["pnpm", "--filter", "@mallaka/lock-bridge", "dev"]
+    profiles: ["full"]
+    env_file:
+      - ../../.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  sponsor:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+    command: ["pnpm", "--filter", "@mallaka/sponsor", "dev"]
+    profiles: ["full"]
+    env_file:
+      - ../../.env
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  notifier:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+    command: ["pnpm", "--filter", "@mallaka/notifier", "dev"]
+    profiles: ["full"]
+    env_file:
+      - ../../.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   redis_data:

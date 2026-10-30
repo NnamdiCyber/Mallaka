@@ -5,9 +5,11 @@
   "description": "Mallaka lease-to-own platform monorepo",
   "license": "Apache-2.0",
   "scripts": {
+    "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "e2e": "node --import tsx scripts/e2e-testnet.ts",
     "dev": "turbo run dev",
     "db:migrate": "turbo run db:migrate",
     "db:seed": "turbo run db:seed",
