@@ -941,31 +941,31 @@ Please **do not** open public issues for security problems. Email `security@<you
 ## 21. Roadmap
 
 ### Phase 0: Foundations
-- [ ] Finalize contract specification and payment rules
-- [ ] Monorepo scaffolding, CI, linting, formatting
-- [ ] Threat model and lock-safety policy
+- [x] Finalize contract specification and payment rules
+- [x] Monorepo scaffolding, CI, linting, formatting
+- [x] Threat model and lock-safety policy
 
 ### Phase 1: Contract MVP (weeks 1-2)
-- [ ] `create_lease`, `activate`, `pay`, completion and title transfer
-- [ ] `check_default` with Grace and Defaulted states
-- [ ] Cure path, `repossess`, `cancel`
-- [ ] Full unit and property tests
+- [x] `create_lease`, `activate`, `pay`, completion and title transfer
+- [x] `check_default` with Grace and Defaulted states
+- [x] Cure path, `repossess`, `cancel`
+- [x] Full unit and property tests
 
 ### Phase 2: Testnet and services (week 3)
-- [ ] Testnet deployment scripts
-- [ ] Keeper, indexer, and persistent event store
-- [ ] TypeScript bindings package
+- [x] Testnet deployment scripts
+- [x] Keeper, indexer, and persistent event store
+- [x] TypeScript bindings package
 
 ### Phase 3: Rider experience (weeks 4-5)
-- [ ] Rider PWA
-- [ ] Paystack/Flutterwave payment flow
-- [ ] Fee-bump sponsorship
-- [ ] SMS reminders and receipts
+- [x] Rider PWA
+- [x] Paystack/Flutterwave payment flow
+- [x] Fee-bump sponsorship
+- [x] SMS reminders and receipts
 
 ### Phase 4: Enforcement (week 6+)
-- [ ] Lessor dashboard with manual lock toggle
-- [ ] Lock bridge with safety rules
-- [ ] GPS/immobilizer vendor integration
+- [x] Lessor dashboard with manual lock toggle
+- [x] Lock bridge with safety rules
+- [x] GPS/immobilizer vendor integration
 
 ### Phase 5: Pilot
 - [ ] Security audit

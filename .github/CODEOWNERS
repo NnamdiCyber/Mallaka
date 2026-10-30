@@ -1,0 +1,23 @@
+# Mallaka Code Owners
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Global project maintainers
+*                       @NnamdiCyber
+
+# Smart Contracts (Rust / Soroban)
+/contracts/             @NnamdiCyber
+
+# Off-chain services (TypeScript / Node.js)
+/services/              @NnamdiCyber
+
+# Frontend applications (Next.js PWA / Lessor Dashboard / USSD)
+/apps/                  @NnamdiCyber
+
+# Shared packages and contract bindings
+/packages/              @NnamdiCyber
+
+# Security policy, threat model, and architecture decisions
+/SECURITY.md            @NnamdiCyber
+/docs/decisions/        @NnamdiCyber
+/docs/threat-model.md   @NnamdiCyber
+/docs/runbooks/         @NnamdiCyber
