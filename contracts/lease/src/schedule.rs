@@ -150,6 +150,23 @@ pub fn validate_terms(terms: &Terms) -> Result<(), Error> {
     Ok(())
 }
 
+/// Calculate repossession equity for a defaulted lease (Section 22 Item 1).
+/// Computes the rider's accrued equity after accounting for standard asset usage/depreciation (50% of total price).
+/// If the rider paid more than the 50% usage allowance, the difference is recorded as rider equity.
+pub fn calculate_repossession_equity(
+    total_price: i128,
+    deposit: i128,
+    paid: i128,
+) -> i128 {
+    let total_contributed = deposit.saturating_add(paid);
+    let usage_allowance = total_price / 2;
+    if total_contributed > usage_allowance {
+        total_contributed - usage_allowance
+    } else {
+        0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -159,6 +176,16 @@ mod tests {
         assert_eq!(installments_remaining_balance(1000, 100, 0).unwrap(), 900);
         assert_eq!(installments_remaining_balance(1000, 100, 300).unwrap(), 600);
         assert_eq!(installments_remaining_balance(1000, 100, 900).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_calculate_repossession_equity() {
+        // Total price 1000, deposit 100, paid 200 -> total 300 <= 500 (allowance) -> 0 equity
+        assert_eq!(calculate_repossession_equity(1000, 100, 200), 0);
+        // Total price 1000, deposit 100, paid 400 -> total 500 == 500 -> 0 equity
+        assert_eq!(calculate_repossession_equity(1000, 100, 400), 0);
+        // Total price 1000, deposit 100, paid 600 -> total 700 > 500 -> 200 equity
+        assert_eq!(calculate_repossession_equity(1000, 100, 600), 200);
     }
 
     #[test]

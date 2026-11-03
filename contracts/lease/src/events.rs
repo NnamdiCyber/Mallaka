@@ -138,6 +138,30 @@ pub fn repossessed(env: &Env, lease_id: u64, ts: u64) {
     env.events().publish(("repossessed", topics), data);
 }
 
+/// Topics for equity_settled: [lease_id, lessee]
+/// Data: equity_amount, total_paid
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EquitySettledData {
+    pub equity_amount: i128,
+    pub total_paid: i128,
+}
+
+pub fn equity_settled(
+    env: &Env,
+    lease_id: u64,
+    lessee: &Address,
+    equity_amount: i128,
+    total_paid: i128,
+) {
+    let topics = (lease_id, lessee.clone());
+    let data = EquitySettledData {
+        equity_amount,
+        total_paid,
+    };
+    env.events().publish(("equity_settled", topics), data);
+}
+
 /// Topics for cancelled: [lease_id]
 /// Data: ts
 #[contracttype]

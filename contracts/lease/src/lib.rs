@@ -268,7 +268,14 @@ impl LeaseContract {
 
         events::repossessed(&env, lease_id, now);
 
-        // TODO: Section 22 item 1 - Equity on repossession. Contract currently does not calculate or execute refund or equity settlement on repossession.
+        // Section 22 item 1: Compute accrued equity on repossession and emit settlement event
+        let equity = crate::schedule::calculate_repossession_equity(
+            lease.total_price,
+            lease.deposit,
+            lease.paid,
+        );
+        let total_paid = lease.deposit.saturating_add(lease.paid);
+        events::equity_settled(&env, lease_id, &lease.lessee, equity, total_paid);
     }
 
     /// Cancel a pending lease. Called by lessor.
