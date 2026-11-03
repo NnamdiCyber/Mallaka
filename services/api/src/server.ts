@@ -4,7 +4,7 @@ import { loadConfig, createLogger, SorobanLeaseChain, SponsorQueueSubmitter, dev
 import { FixedRateProvider, BullMqPayQueue, PaymentProcessor, createPayWorker, type PayJobQueue } from "@mallaka/payments";
 import { Notifier, driverFromConfig } from "@mallaka/notifier";
 import { buildApp } from "./app.js";
-import { DevCheckout, PaystackCheckout } from "./checkout.js";
+import { DevCheckout, FlutterwaveCheckout, PaystackCheckout } from "./checkout.js";
 
 /** Wires the real dependencies from env (README 16) and starts listening. */
 export async function startApi(port = Number(process.env.PORT ?? 3001)) {
@@ -33,7 +33,10 @@ export async function startApi(port = Number(process.env.PORT ?? 3001)) {
     otp: notifier,
     fx: new FixedRateProvider(),
     payQueue,
-    checkout: { paystack: config.PAYSTACK_SECRET_KEY ? new PaystackCheckout(config.PAYSTACK_SECRET_KEY) : new DevCheckout() },
+    checkout: {
+      paystack: config.PAYSTACK_SECRET_KEY ? new PaystackCheckout(config.PAYSTACK_SECRET_KEY) : new DevCheckout(),
+      flutterwave: config.FLUTTERWAVE_SECRET_KEY ? new FlutterwaveCheckout(config.FLUTTERWAVE_SECRET_KEY) : new DevCheckout(),
+    },
     jwtSecret: config.JWT_SECRET,
     paystackSecretKey: config.PAYSTACK_SECRET_KEY,
     flutterwaveSecretHash: config.FLUTTERWAVE_SECRET_HASH,

@@ -30,7 +30,40 @@ export class PaystackCheckout implements CheckoutProvider {
   }
 }
 
-/** Dev-only stand-in used when no PAYSTACK_SECRET_KEY is configured. Never charges anything. */
+/**
+ * Flutterwave hosted checkout (README 12). Only reference, amount and a
+ * synthetic non-personal email are sent. No card data touches Mallaka.
+ */
+export class FlutterwaveCheckout implements CheckoutProvider {
+  constructor(
+    private readonly secretKey: string,
+    private readonly fetchFn: typeof fetch = fetch
+  ) {}
+
+  async initialize(input: { reference: string; amountNaira: string; riderRef: string }): Promise<{ checkoutUrl: string }> {
+    const res = await this.fetchFn("https://api.flutterwave.com/v3/payments", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${this.secretKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tx_ref: input.reference,
+        amount: input.amountNaira,
+        currency: "NGN",
+        customer: {
+          email: `rider-${input.riderRef}@riders.mallaka.invalid`,
+        },
+        customizations: {
+          title: "Mallaka Lease Payment",
+        },
+      }),
+    });
+    if (!res.ok) throw new AppError("The payment provider is unavailable", 502, "PROVIDER_UNAVAILABLE");
+    const body = (await res.json()) as { data?: { link?: string } };
+    if (!body.data?.link) throw new AppError("The payment provider is unavailable", 502, "PROVIDER_UNAVAILABLE");
+    return { checkoutUrl: body.data.link };
+  }
+}
+
+/** Dev-only stand-in used when no payment secret key is configured. Never charges anything. */
 export class DevCheckout implements CheckoutProvider {
   constructor(private readonly baseUrl = "http://localhost:3000") {}
   async initialize(input: { reference: string }): Promise<{ checkoutUrl: string }> {

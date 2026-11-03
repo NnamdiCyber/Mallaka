@@ -22,6 +22,7 @@ export const ConfigSchema = z.object({
     .pipe(z.number().nonnegative().optional()),
   PAYSTACK_SECRET_KEY: z.string().optional(),
   FLUTTERWAVE_SECRET_HASH: z.string().optional(),
+  FLUTTERWAVE_SECRET_KEY: z.string().optional(),
   AFRICASTALKING_API_KEY: z.string().optional(),
   AFRICASTALKING_USERNAME: z.string().optional(),
   LOCK_VENDOR_API_URL: z.string().url().optional(),
