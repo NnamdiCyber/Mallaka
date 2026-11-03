@@ -20,8 +20,8 @@ async function setup(opts: { notices?: ("grace_entered" | "pre_lock")[]; status?
   chain.addLease({ id: leaseId, derivedStatus: opts.status ?? "Defaulted", storedStatus: opts.status ?? "Defaulted", arrears: "100000000" });
   const device = new MockDevice();
   const sms = new ConsoleDriver();
-  const notifier = new Notifier({ driver: sms, db: pool, contactSecret: SECRET });
   const clock = { now: new Date(T0) };
+  const notifier = new Notifier({ driver: sms, db: pool, contactSecret: SECRET, now: () => clock.now });
   const bridge = new LockBridge({
     db: pool, chain, device, notifier,
     preLockDelaySeconds: 3600, retryDelaySeconds: 60, now: () => clock.now,

@@ -24,6 +24,7 @@ export interface NotifierOptions {
    * has no payment yet. The FX policy itself is an open question (README 22 item 7).
    */
   fallbackNairaPerToken?: string;
+  now?: () => Date;
   logger?: Logger;
 }
 
@@ -57,6 +58,7 @@ export class Notifier {
   private readonly db?: Queryable;
   private readonly secret?: string;
   private readonly fallbackRate: string;
+  private readonly now: () => Date;
   private readonly logger: Logger;
 
   constructor(opts: NotifierOptions) {
@@ -64,6 +66,7 @@ export class Notifier {
     this.db = opts.db;
     this.secret = opts.contactSecret;
     this.fallbackRate = opts.fallbackNairaPerToken ?? "1500.000000";
+    this.now = opts.now ?? (() => new Date());
     this.logger = opts.logger ?? createLogger("notifier");
   }
 
@@ -119,10 +122,11 @@ export class Notifier {
     }
     await this.driver.send(rider.phone, render(id, rider.locale, params));
     if ((id === "grace_entered" || id === "pre_lock") && this.db) {
-      await this.db.query(`INSERT INTO rider_notices (lease_id, kind, channel) VALUES ($1, $2, $3);`, [
+      await this.db.query(`INSERT INTO rider_notices (lease_id, kind, channel, created_at) VALUES ($1, $2, $3, $4);`, [
         leaseId,
         id,
         this.driver.name,
+        this.now().toISOString(),
       ]);
     }
     return true;
@@ -187,10 +191,11 @@ export class Notifier {
         dueDate: formatDate(nextDue),
       });
       if (ok) {
-        await this.db.query(`INSERT INTO rider_notices (lease_id, kind, channel) VALUES ($1, $2, $3);`, [
+        await this.db.query(`INSERT INTO rider_notices (lease_id, kind, channel, created_at) VALUES ($1, $2, $3, $4);`, [
           l.id,
           kind,
           this.driver.name,
+          this.now().toISOString(),
         ]);
         sent++;
       }
