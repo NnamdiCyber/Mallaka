@@ -20,9 +20,15 @@ interface PaymentRow {
   excess_naira_amount: string;
 }
 
+export interface OnrampProvider {
+  /** Funds the custodial payer account with settlement tokens before on-chain contract payment. */
+  fundPayer(payerAddress: string, tokenAddress: string, tokenAmount: bigint): Promise<{ txHash?: string }>;
+}
+
 export interface ProcessorOptions {
   db: Queryable;
   chain: LeaseChain;
+  onramp?: OnrampProvider;
   /** After this many failed attempts the payment is flagged for manual review and an alert is raised. */
   maxAttempts?: number;
   /** Alert hook (Sentry/pager). Defaults to an error log line. */
@@ -47,6 +53,7 @@ export type ProcessResult = "settled" | "failed" | "already_settled" | "not_foun
 export class PaymentProcessor {
   private readonly db: Queryable;
   private readonly chain: LeaseChain;
+  private readonly onramp?: OnrampProvider;
   private readonly maxAttempts: number;
   private readonly logger: Logger;
   private readonly alert: (message: string, details: Record<string, unknown>) => void;
@@ -56,6 +63,7 @@ export class PaymentProcessor {
   constructor(opts: ProcessorOptions) {
     this.db = opts.db;
     this.chain = opts.chain;
+    this.onramp = opts.onramp;
     this.maxAttempts = opts.maxAttempts ?? 5;
     this.logger = opts.logger ?? createLogger("payments:processor");
     this.alert =
@@ -118,6 +126,17 @@ export class PaymentProcessor {
         // Nothing can be applied (lease already paid off). Whole amount is excess awaiting manual refund.
         await this.settle(p, null);
         return "settled";
+      }
+
+      if (this.onramp) {
+        const leaseRes = await this.db.query<{ token_address: string }>(
+          `SELECT token_address FROM leases WHERE id = $1;`,
+          [p.lease_id]
+        );
+        const tokenAddr = leaseRes.rows[0]?.token_address;
+        if (tokenAddr) {
+          await this.onramp.fundPayer(p.payer_address, tokenAddr, applied);
+        }
       }
 
       const prepared = await this.chain.prepare({
