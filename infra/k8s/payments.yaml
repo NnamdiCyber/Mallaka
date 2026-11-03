@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payments
+  namespace: mallaka
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: payments
+  template:
+    metadata:
+      labels:
+        app: payments
+    spec:
+      containers:
+        - name: payments
+          image: ghcr.io/mallaka/payments:latest
+          command: ["node", "services/payments/dist/index.js"]
+          ports:
+            - containerPort: 3002
+          envFrom:
+            - configMapRef:
+                name: mallaka-config
+            - secretRef:
+                name: mallaka-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payments
+  namespace: mallaka
+spec:
+  selector:
+    app: payments
+  ports:
+    - port: 3002
+      targetPort: 3002

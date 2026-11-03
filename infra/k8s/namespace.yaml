@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mallaka
+  labels:
+    app.kubernetes.io/name: mallaka
+    app.kubernetes.io/part-of: mallaka

@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ussd
+  namespace: mallaka
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ussd
+  template:
+    metadata:
+      labels:
+        app: ussd
+    spec:
+      containers:
+        - name: ussd
+          image: ghcr.io/mallaka/ussd:latest
+          command: ["node", "apps/ussd/dist/index.js"]
+          ports:
+            - containerPort: 3003
+          envFrom:
+            - configMapRef:
+                name: mallaka-config
+            - secretRef:
+                name: mallaka-secrets
+          resources:
+            requests:
+              cpu: 150m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ussd
+  namespace: mallaka
+spec:
+  selector:
+    app: ussd
+  ports:
+    - port: 3003
+      targetPort: 3003

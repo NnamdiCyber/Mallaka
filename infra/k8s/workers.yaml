@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keeper
+  namespace: mallaka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keeper
+  template:
+    metadata:
+      labels:
+        app: keeper
+    spec:
+      containers:
+        - name: keeper
+          image: ghcr.io/mallaka/keeper:latest
+          command: ["node", "services/keeper/dist/index.js"]
+          envFrom:
+            - configMapRef:
+                name: mallaka-config
+            - secretRef:
+                name: mallaka-secrets
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: indexer
+  namespace: mallaka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: indexer
+  template:
+    metadata:
+      labels:
+        app: indexer
+    spec:
+      containers:
+        - name: indexer
+          image: ghcr.io/mallaka/indexer:latest
+          command: ["node", "services/indexer/dist/index.js"]
+          envFrom:
+            - configMapRef:
+                name: mallaka-config
+            - secretRef:
+                name: mallaka-secrets
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sponsor
+  namespace: mallaka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sponsor
+  template:
+    metadata:
+      labels:
+        app: sponsor
+    spec:
+      containers:
+        - name: sponsor
+          image: ghcr.io/mallaka/sponsor:latest
+          command: ["node", "services/sponsor/dist/index.js"]
+          envFrom:
+            - configMapRef:
+                name: mallaka-config
+            - secretRef:
+                name: mallaka-secrets
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lock-bridge
+  namespace: mallaka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lock-bridge
+  template:
+    metadata:
+      labels:
+        app: lock-bridge
+    spec:
+      containers:
+        - name: lock-bridge
+          image: ghcr.io/mallaka/lock-bridge:latest
+          command: ["node", "services/lock-bridge/dist/index.js"]
+          envFrom:
+            - configMapRef:
+                name: mallaka-config
+            - secretRef:
+                name: mallaka-secrets

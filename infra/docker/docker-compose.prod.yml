@@ -1,0 +1,131 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mallaka}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-mallaka}
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mallaka} -d ${POSTGRES_DB:-mallaka}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-}"]
+    volumes:
+      - redis_prod_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.prod
+    command: ["node", "services/api/dist/index.js"]
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file:
+      - ../../.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  payments:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.prod
+    command: ["node", "services/payments/dist/index.js"]
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    env_file:
+      - ../../.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  ussd:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.prod
+    command: ["node", "apps/ussd/dist/index.js"]
+    restart: unless-stopped
+    ports:
+      - "3003:3003"
+    env_file:
+      - ../../.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  keeper:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.prod
+    command: ["node", "services/keeper/dist/index.js"]
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  indexer:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.prod
+    command: ["node", "services/indexer/dist/index.js"]
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  sponsor:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.prod
+    command: ["node", "services/sponsor/dist/index.js"]
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  lock-bridge:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.prod
+    command: ["node", "services/lock-bridge/dist/index.js"]
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_prod_data:
+  redis_prod_data:

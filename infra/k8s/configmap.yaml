@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mallaka-config
+  namespace: mallaka
+data:
+  STELLAR_NETWORK: "mainnet"
+  SOROBAN_RPC_URL: "https://soroban-rpc.stellar.org"
+  HORIZON_URL: "https://horizon.stellar.org"
+  LEASE_CONTRACT_ID: "C..."
+  TITLE_REGISTRY_CONTRACT_ID: "C..."
+  PAYMENT_TOKEN_CONTRACT_ID: "C..."
+  KEEPER_INTERVAL_SECONDS: "60"
+  MANUAL_LOCK_APPROVAL_THRESHOLD: "0"
